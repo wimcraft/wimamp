@@ -1,0 +1,38 @@
+schema: spec-driven
+
+context: |
+  Wimamp is a keyboard-first, offline music player for local files. It is a personal, open-source project.
+  Tech stack: Go, one binary for macOS, Linux and Windows. mpv is the playback engine and runs as the background daemon, controlled over its JSON IPC socket (a Unix socket, or a named pipe on Windows). The TUI uses Bubbletea. The planned popup window uses Ebitengine, and its file picker uses ncruces/zenity.
+  Principles: keep it small, with only the features a player needs. Wimamp defines no global hotkeys; it exposes CLI commands for i3, Hammerspoon, Raycast, AutoHotkey and similar tools to bind.
+  Markdown: never hard-wrap prose. One paragraph is one line.
+
+# Project context (optional)
+# This is shown to AI when creating artifacts.
+# Add your tech stack, conventions, style guides, domain knowledge, etc.
+# Example:
+#   context: |
+#     Tech stack: TypeScript, React, Node.js
+#     We use conventional commits
+#     Domain: e-commerce platform
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing
