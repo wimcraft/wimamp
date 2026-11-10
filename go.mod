@@ -8,7 +8,7 @@ require (
 	github.com/hajimehoshi/bitmapfont/v3 v3.3.0
 	github.com/hajimehoshi/ebiten/v2 v2.10.6
 	github.com/ncruces/zenity v0.10.15
-	golang.org/x/sys v0.47.0
+	golang.org/x/sys v0.50.0
 )
 
 require (
