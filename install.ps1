@@ -96,8 +96,7 @@ function Install-Wimamp {
 			Write-Host "  [Environment]::SetEnvironmentVariable('Path', [Environment]::GetEnvironmentVariable('Path', 'User') + ';$winget', 'User')"
 		} else {
 			Write-Host 'wimamp plays through mpv, which is not installed yet:'
-			Write-Host '  scoop install mpv'
-			Write-Host "  (or: winget install -e --id shinchiro.mpv, then add $winget to your PATH)"
+			Write-Host '  winget install -e --id shinchiro.mpv'
 		}
 	}
 }

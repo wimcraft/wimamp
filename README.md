@@ -13,9 +13,9 @@ macOS is the primary platform. Linux and Windows builds are published too, but t
 wimamp needs mpv:
 
 ```sh
-brew install mpv          # macOS
-sudo apt install mpv      # Debian/Ubuntu
-scoop install mpv         # Windows
+brew install mpv                       # macOS
+sudo apt install mpv                   # Debian/Ubuntu
+winget install -e --id shinchiro.mpv   # Windows
 ```
 
 Then install wimamp. On macOS and Linux it goes into `~/.local/bin`:
