@@ -23,6 +23,27 @@ func socketPath() string {
 
 func dial() (io.ReadWriteCloser, error) { return os.OpenFile(socketPath(), os.O_RDWR, 0) }
 
+// mpvPath finds mpv on PATH, falling back to where the winget package (shinchiro.mpv) installs it:
+// that installer doesn't add itself to PATH.
+func mpvPath() string {
+	if p, err := exec.LookPath("mpv"); err == nil {
+		return p
+	}
+	for _, env := range []string{"ProgramFiles", "ProgramW6432"} { // ProgramW6432: 32-bit callers on 64-bit Windows
+		if dir := os.Getenv(env); dir != "" {
+			if p := filepath.Join(dir, "MPV Player", "mpv.exe"); fileExists(p) {
+				return p
+			}
+		}
+	}
+	return "mpv" // not found: let exec report it
+}
+
+func fileExists(p string) bool {
+	fi, err := os.Stat(p)
+	return err == nil && !fi.IsDir()
+}
+
 // DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP: mpv outlives the console that started it.
 func detach(c *exec.Cmd) { c.SysProcAttr = &syscall.SysProcAttr{CreationFlags: 0x8 | 0x200} }
 

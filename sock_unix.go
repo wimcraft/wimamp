@@ -14,6 +14,8 @@ import (
 	"time"
 )
 
+func mpvPath() string { return "mpv" }
+
 // socketPath avoids $TMPDIR so terminals, Raycast and hotkey daemons all agree on it.
 func socketPath() string {
 	if p := os.Getenv("WIMAMP_SOCKET"); p != "" {
