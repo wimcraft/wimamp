@@ -21,7 +21,22 @@ func socketPath() string {
 	return `\\.\pipe\wimamp`
 }
 
-func dial() (io.ReadWriteCloser, error) { return os.OpenFile(socketPath(), os.O_RDWR, 0) }
+// dial opens the pipe for overlapped I/O. A synchronous handle (what os.OpenFile gives) serializes
+// all I/O on it, so call's concurrent write blocks behind its pending read and both hang forever;
+// it also ignores SetDeadline. os.NewFile hands an overlapped handle to the runtime poller instead.
+func dial() (io.ReadWriteCloser, error) {
+	p := socketPath()
+	name, err := windows.UTF16PtrFromString(p)
+	if err != nil {
+		return nil, err
+	}
+	h, err := windows.CreateFile(name, windows.GENERIC_READ|windows.GENERIC_WRITE, 0, nil,
+		windows.OPEN_EXISTING, windows.FILE_FLAG_OVERLAPPED, 0)
+	if err != nil {
+		return nil, &os.PathError{Op: "open", Path: p, Err: err}
+	}
+	return os.NewFile(uintptr(h), p), nil
+}
 
 // DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP: mpv outlives the console that started it.
 func detach(c *exec.Cmd) { c.SysProcAttr = &syscall.SysProcAttr{CreationFlags: 0x8 | 0x200} }
