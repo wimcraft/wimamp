@@ -18,13 +18,19 @@ sudo apt install mpv      # Debian/Ubuntu
 scoop install mpv         # Windows
 ```
 
-Then install wimamp (macOS and Linux) into `~/.local/bin`:
+Then install wimamp. On macOS and Linux it goes into `~/.local/bin`:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/wimcraft/wimamp/main/install.sh | sh
 ```
 
-The script picks the binary for your system from the [latest release](https://github.com/wimcraft/wimamp/releases/latest) and checks its SHA-256. `WIMAMP_VERSION=v0.1.0` pins a version, and `WIMAMP_INSTALL_DIR` changes the target directory. On Windows, download `wimamp-windows-amd64.exe` from the releases page.
+On Windows, run this in PowerShell. It installs into `%LOCALAPPDATA%\Programs\wimamp` and adds that folder to your user PATH:
+
+```powershell
+irm https://raw.githubusercontent.com/wimcraft/wimamp/main/install.ps1 | iex
+```
+
+Run the same command again to update. Both scripts pick the binary for your system from the [latest release](https://github.com/wimcraft/wimamp/releases/latest) and check its SHA-256. `WIMAMP_VERSION=v0.1.0` pins a version (in PowerShell: `$env:WIMAMP_VERSION = "v0.1.0"`), and `WIMAMP_INSTALL_DIR` changes the target directory.
 
 To build from source (Go 1.27+; on Linux the window also needs the X11/GL headers, e.g. `libgl1-mesa-dev xorg-dev`):
 

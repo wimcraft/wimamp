@@ -11,7 +11,7 @@ version=${WIMAMP_VERSION:-latest}
 os=$(uname -s | tr '[:upper:]' '[:lower:]')
 case $os in
 darwin | linux) ;;
-*) echo "wimamp: unsupported OS '$os'. On Windows, download wimamp-windows-amd64.exe from https://github.com/$repo/releases" >&2; exit 1 ;;
+*) echo "wimamp: unsupported OS '$os'. On Windows, run in PowerShell: irm https://raw.githubusercontent.com/$repo/main/install.ps1 | iex" >&2; exit 1 ;;
 esac
 case $(uname -m) in
 x86_64 | amd64) arch=amd64 ;;
