@@ -33,7 +33,6 @@ var (
 	face   = text.NewGoXFace(bitmapfont.Face)
 	cPanel = color.RGBA{0x2a, 0x2b, 0x3d, 0xff}
 	cBar   = color.RGBA{0x18, 0x18, 0x28, 0xff}
-	cLight = color.RGBA{0x5c, 0x5e, 0x7a, 0xff}
 	cDark  = color.RGBA{0x10, 0x10, 0x18, 0xff}
 	cBlack = color.RGBA{0x00, 0x00, 0x00, 0xff}
 	cGreen = color.RGBA{0x00, 0xe8, 0x00, 0xff}
@@ -42,11 +41,16 @@ var (
 	cSel   = color.RGBA{0x10, 0x20, 0xb0, 0xff}
 	cGold  = color.RGBA{0xd8, 0xc8, 0x60, 0xff}
 	cErr   = color.RGBA{0xff, 0x60, 0x40, 0xff}
+	cBtn   = color.RGBA{0x48, 0x48, 0x4c, 0xff} // button face
+	cBtnHi = color.RGBA{0x74, 0x74, 0x7a, 0xff}
+	cBtnLo = color.RGBA{0x1c, 0x1c, 0x20, 0xff}
+	cInk   = color.RGBA{0xd8, 0xd8, 0xdc, 0xff} // icons and text on buttons
 )
 
 var (
 	rTitle   = image.Rect(0, 0, gw, 14)
 	rClose   = image.Rect(gw-13, 2, gw-3, 12)
+	rPin     = image.Rect(3, 2, 13, 12) // always on top
 	rLCD     = image.Rect(8, 18, 100, 60)
 	rMarquee = image.Rect(106, 18, gw-8, 36)
 	rVol     = image.Rect(106, 44, gw-87, 52)
@@ -78,7 +82,8 @@ type gui struct {
 	cursor, top int
 	synced      bool
 
-	drag         string // "win", "seek", "vol" while the left button is held
+	drag         string    // "win", "seek", "vol" while the left button is held
+	volUntil     time.Time // the marquee shows the volume instead of the title until then
 	dragX, dragY int
 	seekFrac     float64
 	lastClick    time.Time
@@ -248,7 +253,7 @@ func (g *gui) Update() error {
 	switch {
 	case g.dialog.Load():
 		g.wasFocused = false
-	case g.wasFocused && !f:
+	case g.wasFocused && !f && !ebiten.IsWindowFloating(): // pinned on top: stay open
 		return g.closeWin()
 	default:
 		g.wasFocused = f
@@ -271,6 +276,9 @@ func (g *gui) Update() error {
 	}
 	g.mouse()
 	g.clamp()
+	if !g.volUntil.IsZero() && time.Now().After(g.volUntil) {
+		g.volUntil, g.dirty = time.Time{}, true
+	}
 	if step := time.Now().UnixMilli() / 200; g.scrolls && step != g.step {
 		g.step, g.dirty = step, true
 	}
@@ -342,7 +350,16 @@ func (g *gui) act(a string) {
 		if f := playerAction(a, g.cursor); f != nil {
 			g.do(f)
 		}
+		if a == "volume-up" || a == "volume-down" {
+			g.showVol()
+		}
 	}
+}
+
+// showVol puts the volume in the marquee for a second, then wakes Update to bring the title back.
+func (g *gui) showVol() {
+	g.volUntil = time.Now().Add(time.Second)
+	time.AfterFunc(time.Second+50*time.Millisecond, func() { ebiten.ScheduleFrame() }) //nolint:staticcheck
 }
 
 func (g *gui) pick(dir bool) {
@@ -401,6 +418,8 @@ func (g *gui) mouse() {
 			g.pick(true)
 		case p.In(rClose):
 			g.quit = true
+		case p.In(rPin):
+			ebiten.SetWindowFloating(!ebiten.IsWindowFloating())
 		case p.In(rTitle) || p.In(rPLTitle):
 			g.drag, g.dragX, g.dragY = "win", x, y
 		case p.In(rSeek.Inset(-3)):
@@ -451,6 +470,7 @@ func (g *gui) mouse() {
 			g.s.Vol = v
 			g.do(func() error { _, err := call([]any{"set_property", "volume", v}); return err })
 		}
+		g.showVol()
 	case "seek":
 		g.seekFrac = frac(x, rSeek)
 	}
@@ -487,18 +507,6 @@ func fill(dst *ebiten.Image, r image.Rectangle, c color.Color) {
 	vector.FillRect(dst, float32(r.Min.X), float32(r.Min.Y), float32(r.Dx()), float32(r.Dy()), c, false)
 }
 
-func bevel(dst *ebiten.Image, r image.Rectangle, sunken bool) {
-	hi, lo := cLight, cDark
-	if sunken {
-		hi, lo = lo, hi
-	}
-	fill(dst, r, cPanel)
-	fill(dst, image.Rect(r.Min.X, r.Min.Y, r.Max.X, r.Min.Y+1), hi)
-	fill(dst, image.Rect(r.Min.X, r.Min.Y, r.Min.X+1, r.Max.Y), hi)
-	fill(dst, image.Rect(r.Min.X, r.Max.Y-1, r.Max.X, r.Max.Y), lo)
-	fill(dst, image.Rect(r.Max.X-1, r.Min.Y, r.Max.X, r.Max.Y), lo)
-}
-
 func label(dst *ebiten.Image, s string, x, y int, c color.Color, size float64) {
 	op := &text.DrawOptions{}
 	op.GeoM.Scale(size, size)
@@ -511,9 +519,99 @@ func centered(dst *ebiten.Image, s string, r image.Rectangle, c color.Color) {
 	label(dst, s, r.Min.X+(r.Dx()-int(text.Advance(s, face)))/2, r.Min.Y+(r.Dy()-rowH)/2, c, 1)
 }
 
+// raised draws a light grey button with a 2px bevel inside a black outline; pressed swaps the bevel.
+func raised(dst *ebiten.Image, r image.Rectangle, pressed bool) {
+	hi, lo := cBtnHi, cBtnLo
+	if pressed {
+		hi, lo = lo, hi
+	}
+	fill(dst, r, cBlack)
+	in := r.Inset(1)
+	fill(dst, in, lo)
+	fill(dst, image.Rect(in.Min.X, in.Min.Y, in.Max.X-1, in.Max.Y-1), hi)
+	fill(dst, image.Rect(in.Min.X+1, in.Min.Y+1, in.Max.X-1, in.Max.Y-1), cBtn)
+}
+
 func button(dst *ebiten.Image, r image.Rectangle, s string) {
-	bevel(dst, r, false)
-	centered(dst, s, r, cWhite)
+	raised(dst, r, false)
+	centered(dst, s, r, cInk)
+}
+
+// LCD digits: 7 segments, a-g clockwise from the top, then the middle one.
+const lcdW, lcdH, lcdT = 10, 18, 2
+
+var lcdSegs = map[rune]string{
+	'0': "abcdef", '1': "bc", '2': "abged", '3': "abgcd", '4': "fgbc",
+	'5': "afgcd", '6': "afgedc", '7': "abc", '8': "abcdefg", '9': "abcdfg", '-': "g",
+}
+
+func lcdAdvance(r rune) int {
+	if r == ':' {
+		return lcdT + 4
+	}
+	return lcdW + 3
+}
+
+func lcdWidth(s string) (w int) {
+	for _, r := range s {
+		w += lcdAdvance(r)
+	}
+	return w
+}
+
+// lcdRects lays out s as segment rectangles from (x, y), the font's own colon being two tiny '+'.
+func lcdRects(s string, x, y int) (out []image.Rectangle) {
+	const w, h, t = lcdW, lcdH, lcdT
+	m := y + h/2
+	seg := map[rune]image.Rectangle{
+		'a': image.Rect(t, 0, w-t, t), 'b': image.Rect(w-t, t, w, h/2-1), 'c': image.Rect(w-t, h/2+1, w, h-t),
+		'd': image.Rect(t, h-t, w-t, h), 'e': image.Rect(0, h/2+1, t, h-t), 'f': image.Rect(0, t, t, h/2-1),
+		'g': image.Rect(t, h/2-1, w-t, h/2+1),
+	}
+	for _, r := range s {
+		if r == ':' {
+			out = append(out, image.Rect(x+1, m-5, x+1+t, m-5+t), image.Rect(x+1, m+3, x+1+t, m+3+t))
+		}
+		for _, c := range lcdSegs[r] {
+			out = append(out, seg[c].Add(image.Pt(x, y)))
+		}
+		x += lcdAdvance(r)
+	}
+	return out
+}
+
+// sunken draws a groove cut into the panel: shadow on the top and left, light on the bottom and right.
+func sunken(dst *ebiten.Image, r image.Rectangle) {
+	fill(dst, r, cBtnHi)
+	fill(dst, image.Rect(r.Min.X, r.Min.Y, r.Max.X-1, r.Max.Y-1), cBlack)
+	fill(dst, image.Rect(r.Min.X+1, r.Min.Y+1, r.Max.X-1, r.Max.Y-1), cBtnLo)
+	fill(dst, image.Rect(r.Min.X+2, r.Min.Y+2, r.Max.X-1, r.Max.Y-1), cDark)
+}
+
+// grip draws a slider handle: a grey button with three grip lines in the middle.
+func grip(dst *ebiten.Image, r image.Rectangle) {
+	raised(dst, r, false)
+	mx := r.Min.X + r.Dx()/2
+	for i := -2; i <= 2; i += 2 {
+		fill(dst, image.Rect(mx+i, r.Min.Y+3, mx+i+1, r.Max.Y-3), cInk)
+	}
+}
+
+// volStops color the volume track by level: green at 0, yellow at 50, red at 100.
+var volStops = []color.RGBA{
+	{0x3c, 0x8c, 0x28, 0xff}, {0x8c, 0xd2, 0x3c, 0xff}, {0xdc, 0xdc, 0x32, 0xff}, {0xe6, 0xa0, 0x32, 0xff}, {0xd2, 0x3c, 0x28, 0xff},
+}
+
+func volColor(v float64) color.RGBA {
+	f := max(0, min(v, 100)) / 100 * float64(len(volStops)-1)
+	i := min(int(f), len(volStops)-2)
+	return lerp(volStops[i], volStops[i+1], f-float64(i))
+}
+
+// lerp mixes a into b by f (0..1).
+func lerp(a, b color.RGBA, f float64) color.RGBA {
+	m := func(x, y uint8) uint8 { return uint8(float64(x) + (float64(y)-float64(x))*f) }
+	return color.RGBA{m(a.R, b.R), m(a.G, b.G), m(a.B, b.B), 0xff}
 }
 
 // fit cuts s to at most w pixels.
@@ -563,7 +661,7 @@ func titleBar(dst *ebiten.Image, r image.Rectangle, s string) {
 	fill(dst, r, cBar)
 	w := int(text.Advance(s, face))
 	mid := r.Min.Y + r.Dy()/2
-	fill(dst, image.Rect(r.Min.X+4, mid-1, (r.Dx()-w)/2-4, mid+1), cGold)
+	fill(dst, image.Rect(r.Min.X+16, mid-1, (r.Dx()-w)/2-4, mid+1), cGold)
 	fill(dst, image.Rect((r.Dx()+w)/2+4, mid-1, r.Max.X-16, mid+1), cGold)
 	centered(dst, s, r, cGold)
 }
@@ -580,6 +678,13 @@ func (g *gui) Draw(screen *ebiten.Image) {
 
 	titleBar(screen, rTitle, "WIMAMP")
 	button(screen, rClose, "x")
+	pinned := ebiten.IsWindowFloating()
+	raised(screen, rPin, pinned)
+	led := cDim
+	if pinned {
+		led = cGreen
+	}
+	fill(screen, image.Rect(rPin.Min.X+3, rPin.Min.Y+3, rPin.Max.X-3, rPin.Max.Y-3), led)
 
 	// LCD: state icon and elapsed time
 	fill(screen, rLCD, cBlack)
@@ -591,7 +696,9 @@ func (g *gui) Draw(screen *ebiten.Image) {
 		st = "paused"
 	}
 	icon(screen, st, image.Rect(rLCD.Min.X+2, rLCD.Min.Y+4, rLCD.Min.X+14, rLCD.Min.Y+16), cGreen)
-	label(screen, t, rLCD.Max.X-4-int(text.Advance(t, face))*2, rLCD.Min.Y+6, cGreen, 2)
+	for _, r := range lcdRects(t, rLCD.Max.X-6-lcdWidth(t), rLCD.Min.Y+12) {
+		fill(screen, r, cGreen)
+	}
 
 	// marquee: "N. Title (m:ss)", scrolling when it doesn't fit
 	fill(screen, rMarquee, cBlack)
@@ -600,6 +707,9 @@ func (g *gui) Draw(screen *ebiten.Image) {
 		msg, c = "player not running", cErr
 	} else if !s.Idle && i >= 0 {
 		msg = fmt.Sprintf("%d. %s (%s)", i+1, s.Title, fmtTime(s.Dur))
+	}
+	if !g.volUntil.IsZero() {
+		msg, c = fmt.Sprintf("VOLUME: %d%%", int(s.Vol)), cGreen
 	}
 	area := rMarquee.Inset(3)
 	g.scrolls = int(text.Advance(msg, face)) > area.Dx()
@@ -611,38 +721,42 @@ func (g *gui) Draw(screen *ebiten.Image) {
 	label(screen.SubImage(area).(*ebiten.Image), msg, area.Min.X, area.Min.Y, c, 1)
 
 	// volume, shuffle, repeat
-	fill(screen, rVol.Inset(2), cDark)
-	fill(screen, image.Rect(rVol.Min.X+2, rVol.Min.Y+2, rVol.Min.X+2+int(min(s.Vol, 100)/100*float64(rVol.Dx()-4)), rVol.Max.Y-2), cDim)
-	kx := rVol.Min.X + int(min(s.Vol, 100)/100*float64(rVol.Dx()-6))
-	bevel(screen, image.Rect(kx, rVol.Min.Y-2, kx+6, rVol.Max.Y+2), false)
+	track, vc := rVol.Inset(2), volColor(s.Vol) // the whole track takes the level's color
+	fill(screen, track, vc)
+	fill(screen, image.Rect(track.Min.X, track.Min.Y, track.Max.X, track.Min.Y+1), lerp(vc, cWhite, 0.35))
+	fill(screen, image.Rect(track.Min.X, track.Max.Y-1, track.Max.X, track.Max.Y), lerp(vc, cBlack, 0.4))
+	const kw = 14
+	kx := rVol.Min.X + int(min(s.Vol, 100)/100*float64(rVol.Dx()-kw))
+	grip(screen, image.Rect(kx, rVol.Min.Y-2, kx+kw, rVol.Max.Y+2))
 	for _, t := range []struct {
 		r  image.Rectangle
 		s  string
 		on bool
 	}{{rShuf, "SHF", s.Shuffle}, {rRep, "REP", s.Repeat}} {
-		bevel(screen, t.r, t.on)
+		raised(screen, t.r, t.on)
 		led := cDim
 		if t.on {
 			led = cGreen
 		}
 		fill(screen, image.Rect(t.r.Min.X+3, t.r.Min.Y+6, t.r.Min.X+6, t.r.Min.Y+9), led)
-		label(screen, t.s, t.r.Min.X+9, t.r.Min.Y, cWhite, 1)
+		label(screen, t.s, t.r.Min.X+9, t.r.Min.Y, cInk, 1)
 	}
 
 	// seek bar
-	fill(screen, rSeek, cDark)
+	sunken(screen, rSeek)
 	f := 0.0
 	if g.drag == "seek" {
 		f = g.seekFrac
 	} else if s.Dur > 0 {
 		f = s.Pos / s.Dur
 	}
-	sx := rSeek.Min.X + int(f*float64(rSeek.Dx()-12))
-	bevel(screen, image.Rect(sx, rSeek.Min.Y-1, sx+12, rSeek.Max.Y+1), false)
+	const sw = 30 // wider than the volume knob, as in the original
+	sx := rSeek.Min.X + int(f*float64(rSeek.Dx()-sw))
+	grip(screen, image.Rect(sx, rSeek.Min.Y-2, sx+sw, rSeek.Max.Y+2))
 
 	for i, a := range transportActions {
-		bevel(screen, transport(i), false)
-		icon(screen, a, transport(i), cWhite)
+		raised(screen, transport(i), false)
+		icon(screen, a, transport(i), cInk)
 	}
 
 	// playlist
