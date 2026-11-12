@@ -37,7 +37,7 @@ func ensureDaemon() error {
 		return nil
 	}
 	removeStale()
-	cmd := exec.Command("mpv", "--idle=yes", "--no-video", "--no-terminal", "--force-window=no",
+	cmd := exec.Command(mpvPath(), "--idle=yes", "--no-video", "--no-terminal", "--force-window=no",
 		"--input-ipc-server="+socketPath())
 	detach(cmd)
 	if err := cmd.Start(); err != nil {
