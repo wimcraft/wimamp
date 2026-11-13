@@ -111,7 +111,7 @@ func (m *model) key(k string) tea.Cmd {
 	case m.srch.on:
 		if i := m.srch.key(k, m.s.List); i >= 0 {
 			m.cursor = i
-			return run(playerAction("play", i))
+			return run(playerAction("play", i, len(m.s.List)))
 		}
 	default:
 		return m.do(resolve(m.keys, &m.pending, k))
@@ -134,7 +134,7 @@ func (m *model) do(a string) tea.Cmd {
 	case "quit-player":
 		return tea.Sequence(func() tea.Msg { call(simple["quit"]); return nil }, tea.Quit)
 	}
-	if f := playerAction(a, m.cursor); f != nil {
+	if f := playerAction(a, m.cursor, len(m.s.List)); f != nil {
 		return run(f)
 	}
 	return nil // e.g. add-files: window only

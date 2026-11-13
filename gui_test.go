@@ -54,3 +54,70 @@ func TestVolColor(t *testing.T) {
 		}
 	}
 }
+
+func TestPlaylistScrollKeepsSelectionVisible(t *testing.T) {
+	g := gui{s: state{List: make([]entry, 20)}, cursor: 13}
+	g.keepVisible()
+	_, sel, top := g.view()
+	if sel != 13 || top != 1 {
+		t.Fatalf("selection %d, top %d; want 13, 1", sel, top)
+	}
+	g.cursor = 0
+	g.keepVisible()
+	_, sel, top = g.view()
+	if sel != 0 || top != 0 {
+		t.Fatalf("selection %d, top %d; want 0, 0", sel, top)
+	}
+}
+
+func TestScrollbarPreservesSelection(t *testing.T) {
+	g := gui{s: state{List: make([]entry, 40)}, cursor: 2}
+	bottom := rScroll.Max.Y - scrollThumbHeight
+	g.scrollTo(bottom)
+	g.clamp()
+	_, sel, top := g.view()
+	if sel != 2 || top != 27 || scrollThumb(40, top).Max.Y != rScroll.Max.Y {
+		t.Fatalf("selection %d, top %d, thumb %v; want 2, 27, bottom", sel, top, scrollThumb(40, top))
+	}
+	g.scrollTo(rScroll.Min.Y)
+	if g.top != 0 {
+		t.Fatalf("scrolling to top gave %d", g.top)
+	}
+	g.search.on = true
+	g.search.sel = 3
+	g.scrollTo(bottom)
+	g.clamp()
+	_, sel, top = g.view()
+	if sel != 3 || top != 27 {
+		t.Fatalf("search selection %d, top %d; want 3, 27", sel, top)
+	}
+	g.s.List = nil
+	g.scrollTo(bottom)
+	g.clamp()
+	if g.searchTop != 0 {
+		t.Fatalf("empty search top = %d, want 0", g.searchTop)
+	}
+}
+
+func TestMarqueeFitsFontHeight(t *testing.T) {
+	m := face.Metrics()
+	if height := m.HAscent + m.HDescent; height > float64(marqueeArea().Dy()) {
+		t.Fatalf("marquee text height %.2f exceeds display height %d", height, marqueeArea().Dy())
+	}
+}
+
+func TestPlayerActionEmptyPlaylist(t *testing.T) {
+	for _, a := range []string{"play", "resume", "toggle", "remove", "next", "prev", "seek-forward"} {
+		if playerAction(a, 0, 0) != nil {
+			t.Errorf("%s runs on an empty playlist", a)
+		}
+		if playerAction(a, 0, 1) == nil {
+			t.Errorf("%s does nothing with a track", a)
+		}
+	}
+	for _, a := range []string{"stop", "shuffle", "repeat", "volume-up"} {
+		if playerAction(a, 0, 0) == nil {
+			t.Errorf("%s should still work on an empty playlist", a)
+		}
+	}
+}
