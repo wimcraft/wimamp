@@ -8,6 +8,8 @@ A keyboard-first music player for local files, in the spirit of Winamp. One smal
 
 The popup uses a 300 × 374-point classic-inspired layout with beveled silver controls, striped title bars, and a green display. The crossing-arrows button toggles shuffle; the return-arrow button toggles repeat. Drag the playlist scrollbar to browse without changing the selected track. The pin button at the left of the title bar keeps the window on top and open when you click elsewhere.
 
+The playlist in the window and the TUI shows each track's length and the playlist's total. Lengths are read from the file headers of MP3, FLAC, Ogg Vorbis, Opus, M4A/MP4 (AAC and ALAC), WAV and AIFF files in the background. Other formats get their length once they have played. The total ends in `+` while some lengths are still unknown.
+
 macOS is the primary platform. Linux and Windows builds are published too, but they get less testing.
 
 ## Install

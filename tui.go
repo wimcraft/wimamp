@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -14,6 +15,7 @@ type stateMsg struct {
 	err error
 }
 type flashMsg string
+type lengthsMsg struct{} // background length reads finished a batch: just re-render
 
 type model struct {
 	s              state
@@ -21,6 +23,7 @@ type model struct {
 	flash, pending string
 	keys           map[string]string
 	cursor, top, h int
+	w              int
 	synced, help   bool
 	srch           search
 }
@@ -33,7 +36,9 @@ func runTUI() error {
 	if err := ensureDaemon(); err != nil {
 		return err
 	}
-	_, err = tea.NewProgram(&model{keys: keys, h: 20}, tea.WithAltScreen()).Run()
+	p := tea.NewProgram(&model{keys: keys, h: 20}, tea.WithAltScreen())
+	lengths.wake = func() { p.Send(lengthsMsg{}) }
+	_, err = p.Run()
 	return err
 }
 
@@ -68,12 +73,15 @@ func (m *model) Init() tea.Cmd { return tea.Batch(refresh, tick()) }
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.h = max(msg.Height-2, 1)
+		m.h, m.w = max(msg.Height-3, 1), msg.Width // status line, footer, flash
 	case tickMsg:
 		return m, tea.Batch(refresh, tick())
 	case flashMsg:
 		m.flash = string(msg)
 	case stateMsg:
+		if !reflect.DeepEqual(msg.s.List, m.s.List) {
+			go queueLengths(paths(msg.s.List), false)
+		}
 		m.s, m.err = msg.s, msg.err
 		if !m.synced && m.err == nil {
 			m.cursor = currentIndex(m.s.List, 0)
@@ -178,23 +186,45 @@ func (m *model) View() string {
 		idx, sel = match(m.s.List, m.srch.q), m.srch.sel
 		top = max(0, sel-h+1)
 	}
+	var visible []entry
 	for n := top; n < len(idx) && n < top+h; n++ {
 		e := m.s.List[idx[n]]
+		visible = append(visible, e)
 		mark := "  "
 		if e.Current {
 			mark = "▶ "
 		}
-		line := fmt.Sprintf("%s%3d. %s", mark, idx[n]+1, e.name())
+		line := rightAlign(fmt.Sprintf("%s%3d. %s", mark, idx[n]+1, e.name()), rowLength(e, m.s), m.w-1)
 		if n == sel {
 			line = "\x1b[7m" + line + "\x1b[0m"
 		}
 		b.WriteString(line + "\n")
 	}
+	queueMissing(visible, true)
+	if len(m.s.List) > 0 {
+		fmt.Fprintf(&b, "  %d tracks  %s", len(m.s.List), totalLength(m.s.List))
+	}
 	if m.srch.on {
-		fmt.Fprintf(&b, "/%s█  %d matches", m.srch.q, len(idx))
+		fmt.Fprintf(&b, "\n/%s█  %d matches", m.srch.q, len(idx))
 	}
 	if m.flash != "" {
 		b.WriteString("\n" + m.flash)
 	}
 	return b.String()
+}
+
+// rightAlign puts right at the end of a width-column line, cutting left to fit.
+// shortcut: counts runes, so wide (CJK) names push the length a little; use go-runewidth if that bothers anyone.
+func rightAlign(left, right string, width int) string {
+	if right == "" || width <= 0 {
+		return left
+	}
+	l, room := []rune(left), width-len(right)-1
+	if room < 1 {
+		return left
+	}
+	if len(l) > room {
+		l = append(l[:room-1], '…')
+	}
+	return string(l) + strings.Repeat(" ", room-len(l)+1) + right
 }
