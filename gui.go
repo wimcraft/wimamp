@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"image"
@@ -13,62 +14,71 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/hajimehoshi/bitmapfont/v3"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	"github.com/ncruces/zenity"
+	"golang.org/x/image/font/gofont/goregular"
 )
 
 // Size in points: 1 logical pixel per point, which Retina still draws crisply at 2x.
 const (
-	gw, gh = 360, 408
+	gw, gh = 300, 374
 	scale  = 1
-	rowH   = 16 // bitmapfont line height
-	rows   = 16
+	rowH   = 15
+	rows   = 13
 )
 
 var (
-	face   = text.NewGoXFace(bitmapfont.Face)
-	cPanel = color.RGBA{0x2a, 0x2b, 0x3d, 0xff}
-	cBar   = color.RGBA{0x18, 0x18, 0x28, 0xff}
-	cDark  = color.RGBA{0x10, 0x10, 0x18, 0xff}
-	cBlack = color.RGBA{0x00, 0x00, 0x00, 0xff}
-	cGreen = color.RGBA{0x00, 0xe8, 0x00, 0xff}
-	cDim   = color.RGBA{0x00, 0x60, 0x00, 0xff}
-	cWhite = color.RGBA{0xff, 0xff, 0xff, 0xff}
-	cSel   = color.RGBA{0x10, 0x20, 0xb0, 0xff}
-	cGold  = color.RGBA{0xd8, 0xc8, 0x60, 0xff}
-	cErr   = color.RGBA{0xff, 0x60, 0x40, 0xff}
-	cBtn   = color.RGBA{0x48, 0x48, 0x4c, 0xff} // button face
-	cBtnHi = color.RGBA{0x74, 0x74, 0x7a, 0xff}
-	cBtnLo = color.RGBA{0x1c, 0x1c, 0x20, 0xff}
-	cInk   = color.RGBA{0xd8, 0xd8, 0xdc, 0xff} // icons and text on buttons
+	fontSource = func() *text.GoTextFaceSource {
+		source, err := text.NewGoTextFaceSource(bytes.NewReader(goregular.TTF))
+		if err != nil {
+			panic(err) // embedded font data is fixed at build time
+		}
+		return source
+	}()
+	face      = &text.GoTextFace{Source: fontSource, Size: 11}
+	smallFace = &text.GoTextFace{Source: fontSource, Size: 8}
+	cPanel    = color.RGBA{0x2b, 0x2c, 0x40, 0xff}
+	cBar      = color.RGBA{0x22, 0x22, 0x33, 0xff}
+	cDark     = color.RGBA{0x10, 0x10, 0x18, 0xff}
+	cBlack    = color.RGBA{0x00, 0x00, 0x00, 0xff}
+	cGreen    = color.RGBA{0x70, 0xe0, 0x45, 0xff}
+	cDim      = color.RGBA{0x35, 0x70, 0x30, 0xff}
+	cWhite    = color.RGBA{0xee, 0xf1, 0xf4, 0xff}
+	cSel      = color.RGBA{0x00, 0x19, 0x9c, 0xff}
+	cGold     = color.RGBA{0xc2, 0xb4, 0x80, 0xff}
+	cErr      = color.RGBA{0xff, 0x60, 0x40, 0xff}
+	cBtn      = color.RGBA{0xa7, 0xb7, 0xc1, 0xff} // button face
+	cBtnHi    = color.RGBA{0xe1, 0xed, 0xf2, 0xff}
+	cBtnLo    = color.RGBA{0x42, 0x4a, 0x5b, 0xff}
+	cInk      = color.RGBA{0x29, 0x3b, 0x49, 0xff} // icons and text on buttons
 )
 
 var (
 	rTitle   = image.Rect(0, 0, gw, 14)
 	rClose   = image.Rect(gw-13, 2, gw-3, 12)
 	rPin     = image.Rect(3, 2, 13, 12) // always on top
-	rLCD     = image.Rect(8, 18, 100, 60)
-	rMarquee = image.Rect(106, 18, gw-8, 36)
-	rVol     = image.Rect(106, 44, gw-87, 52)
-	rShuf    = image.Rect(gw-79, 40, gw-45, 56)
-	rRep     = image.Rect(gw-41, 40, gw-8, 56)
-	rSeek    = image.Rect(8, 66, gw-8, 74)
-	rPLTitle = image.Rect(0, 106, gw, 120)
-	rList    = image.Rect(4, 122, gw-4, 122+rows*rowH)
-	rAdd     = image.Rect(8, gh-24, 48, gh-6)
-	rRem     = image.Rect(52, gh-24, 92, gh-6)
-	rAddFile = image.Rect(8, gh-60, 48, gh-42)
-	rAddDir  = image.Rect(8, gh-42, 48, gh-24)
+	rLCD     = image.Rect(10, 22, 102, 64)
+	rMarquee = image.Rect(106, 23, gw-8, 40)
+	rVol     = image.Rect(106, 58, 226, 66)
+	rShuf    = image.Rect(232, 52, 261, 69)
+	rRep     = image.Rect(263, 52, 292, 69)
+	rSeek    = image.Rect(16, 72, gw-10, 83)
+	rPLTitle = image.Rect(0, 116, gw, 130)
+	rList    = image.Rect(10, 136, gw-17, 136+rows*rowH)
+	rScroll  = image.Rect(gw-14, 136, gw-7, 136+rows*rowH)
+	rAdd     = image.Rect(10, gh-29, 35, gh-11)
+	rRem     = image.Rect(39, gh-29, 64, gh-11)
+	rAddFile = image.Rect(10, gh-65, 50, gh-47)
+	rAddDir  = image.Rect(10, gh-47, 50, gh-29)
 )
 
 // transport buttons, left to right, and the action each one runs
 var transportActions = []string{"prev", "resume", "toggle", "stop", "next"}
 
-func transport(i int) image.Rectangle { return image.Rect(8+i*26, 80, 31+i*26, 98) }
+func transport(i int) image.Rectangle { return image.Rect(16+i*25, 88, 40+i*25, 108) }
 
 type gui struct {
 	mu    sync.Mutex
@@ -80,10 +90,12 @@ type gui struct {
 	keys        map[string]string
 	pending     string
 	cursor, top int
+	searchTop   int
 	synced      bool
 
-	drag         string    // "win", "seek", "vol" while the left button is held
-	volUntil     time.Time // the marquee shows the volume instead of the title until then
+	drag         string          // "win", "seek", "vol" while the left button is held
+	down         image.Rectangle // the button held under the mouse, drawn pressed until release
+	volUntil     time.Time       // the marquee shows the volume instead of the title until then
 	dragX, dragY int
 	seekFrac     float64
 	lastClick    time.Time
@@ -226,6 +238,7 @@ func (g *gui) exec(f func() error) {
 	}
 	if !g.synced && ferr == nil {
 		g.cursor, g.synced, g.dirty = currentIndex(s.List, 0), true, true
+		g.keepVisible()
 	}
 }
 
@@ -266,13 +279,14 @@ func (g *gui) Update() error {
 		case g.search.on:
 			if i := g.search.key(k, g.s.List); i >= 0 {
 				g.cursor = i
-				g.do(playerAction("play", i))
+				g.do(playerAction("play", i, len(g.s.List)))
 			}
 		case k == "esc":
 			return g.closeWin()
 		default:
 			g.act(resolve(g.keys, &g.pending, k))
 		}
+		g.keepVisible()
 	}
 	g.mouse()
 	g.clamp()
@@ -347,7 +361,7 @@ func (g *gui) act(a string) {
 	case "add-files", "add-folder":
 		g.pick(a == "add-folder")
 	default:
-		if f := playerAction(a, g.cursor); f != nil {
+		if f := playerAction(a, g.cursor, len(g.s.List)); f != nil {
 			g.do(f)
 		}
 		if a == "volume-up" || a == "volume-down" {
@@ -405,12 +419,28 @@ func (g *gui) mouse() {
 		} else {
 			g.cursor -= int(wy * 3)
 		}
+		g.keepVisible()
 		g.dirty = true
+	}
+	if !g.down.Empty() && !ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+		g.down, g.dirty = image.Rectangle{}, true
 	}
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 		g.dirty = true
 		menu := g.menu
 		g.menu = false
+		for _, r := range []image.Rectangle{rClose, rPin, rShuf, rRep, rAdd, rRem} {
+			if p.In(r) {
+				g.down = r
+			}
+		}
+		if menu {
+			for _, r := range []image.Rectangle{rAddFile, rAddDir} {
+				if p.In(r) {
+					g.down = r
+				}
+			}
+		}
 		switch {
 		case menu && p.In(rAddFile):
 			g.pick(false)
@@ -434,6 +464,13 @@ func (g *gui) mouse() {
 			g.menu = !menu
 		case p.In(rRem):
 			g.act("remove")
+		case p.In(rScroll):
+			idx, _, top := g.view()
+			thumb := scrollThumb(len(idx), top)
+			g.drag, g.dragY = "scroll", thumb.Dy()/2
+			if p.In(thumb) {
+				g.dragY = y - thumb.Min.Y
+			}
 		case p.In(rList):
 			idx, _, top := g.view()
 			if n := top + (y-rList.Min.Y)/rowH; n < len(idx) {
@@ -452,6 +489,7 @@ func (g *gui) mouse() {
 		default:
 			for i, a := range transportActions {
 				if p.In(transport(i)) {
+					g.down = transport(i)
 					g.act(a)
 				}
 			}
@@ -473,6 +511,8 @@ func (g *gui) mouse() {
 		g.showVol()
 	case "seek":
 		g.seekFrac = frac(x, rSeek)
+	case "scroll":
+		g.scrollTo(y - g.dragY)
 	}
 	if !ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
 		if g.drag == "seek" {
@@ -487,7 +527,7 @@ func (g *gui) mouse() {
 func (g *gui) view() (idx []int, sel, top int) {
 	if g.search.on {
 		idx = match(g.s.List, g.search.q)
-		return idx, g.search.sel, max(0, g.search.sel-rows+1)
+		return idx, g.search.sel, g.searchTop
 	}
 	idx = make([]int, len(g.s.List))
 	for i := range idx {
@@ -498,7 +538,41 @@ func (g *gui) view() (idx []int, sel, top int) {
 
 func (g *gui) clamp() {
 	g.cursor = max(min(g.cursor, len(g.s.List)-1), 0)
-	g.top = max(min(g.top, g.cursor), g.cursor-rows+1, 0)
+	g.top = max(0, min(g.top, len(g.s.List)-rows))
+	if g.search.on {
+		g.searchTop = max(0, min(g.searchTop, len(match(g.s.List, g.search.q))-rows))
+	}
+}
+
+func (g *gui) keepVisible() {
+	g.clamp()
+	if g.search.on {
+		g.searchTop = max(0, min(g.searchTop, g.search.sel), g.search.sel-rows+1)
+	} else {
+		g.top = max(0, min(g.top, g.cursor), g.cursor-rows+1)
+	}
+}
+
+const scrollThumbHeight = 18
+
+func scrollThumb(count, top int) image.Rectangle {
+	travel := rScroll.Dy() - scrollThumbHeight
+	y := rScroll.Min.Y
+	if count > rows {
+		y += max(0, min(top, count-rows)) * travel / (count - rows)
+	}
+	return image.Rect(rScroll.Min.X, y, rScroll.Max.X, y+scrollThumbHeight)
+}
+
+func (g *gui) scrollTo(y int) {
+	idx, _, _ := g.view()
+	travel := rScroll.Dy() - scrollThumbHeight
+	top := (max(0, min(y-rScroll.Min.Y, travel))*max(0, len(idx)-rows) + travel/2) / travel
+	if g.search.on {
+		g.searchTop = top
+	} else {
+		g.top = top
+	}
 }
 
 // --- drawing ---
@@ -508,15 +582,18 @@ func fill(dst *ebiten.Image, r image.Rectangle, c color.Color) {
 }
 
 func label(dst *ebiten.Image, s string, x, y int, c color.Color, size float64) {
+	f := face
+	if size < 0.75 {
+		f = smallFace
+	}
 	op := &text.DrawOptions{}
-	op.GeoM.Scale(size, size)
 	op.GeoM.Translate(float64(x), float64(y))
 	op.ColorScale.ScaleWithColor(c)
-	text.Draw(dst, s, face, op)
+	text.Draw(dst, s, f, op)
 }
 
 func centered(dst *ebiten.Image, s string, r image.Rectangle, c color.Color) {
-	label(dst, s, r.Min.X+(r.Dx()-int(text.Advance(s, face)))/2, r.Min.Y+(r.Dy()-rowH)/2, c, 1)
+	label(dst, s, r.Min.X+(r.Dx()-int(text.Advance(s, face)))/2, r.Min.Y+(r.Dy()-13)/2, c, 1)
 }
 
 // raised draws a light grey button with a 2px bevel inside a black outline; pressed swaps the bevel.
@@ -532,9 +609,25 @@ func raised(dst *ebiten.Image, r image.Rectangle, pressed bool) {
 	fill(dst, image.Rect(in.Min.X+1, in.Min.Y+1, in.Max.X-1, in.Max.Y-1), cBtn)
 }
 
-func button(dst *ebiten.Image, r image.Rectangle, s string) {
-	raised(dst, r, false)
-	centered(dst, s, r, cInk)
+// bevel gives every button the same inset highlight and shadow; pressed swaps them.
+func bevel(dst *ebiten.Image, r image.Rectangle, pressed bool) {
+	hi, lo := color.Color(cWhite), color.Color(cBtnLo)
+	if pressed {
+		hi, lo = lo, hi
+	}
+	raised(dst, r, pressed)
+	fill(dst, image.Rect(r.Min.X+2, r.Min.Y+2, r.Max.X-2, r.Min.Y+3), hi)
+	fill(dst, image.Rect(r.Min.X+2, r.Min.Y+2, r.Min.X+3, r.Max.Y-2), hi)
+	fill(dst, image.Rect(r.Min.X+3, r.Max.Y-3, r.Max.X-2, r.Max.Y-2), lo)
+	fill(dst, image.Rect(r.Max.X-3, r.Min.Y+3, r.Max.X-2, r.Max.Y-2), lo)
+}
+
+func button(dst *ebiten.Image, r image.Rectangle, s string, pressed bool) {
+	bevel(dst, r, pressed)
+	if pressed { // the face sinks with the bevel
+		r = r.Add(image.Pt(1, 1))
+	}
+	label(dst, s, r.Min.X+(r.Dx()-int(text.Advance(s, smallFace)))/2, r.Min.Y+(r.Dy()-10)/2, cInk, 0.5)
 }
 
 // LCD digits: 7 segments, a-g clockwise from the top, then the middle one.
@@ -626,6 +719,10 @@ func fit(s string, w int) string {
 	return string(rs) + ".."
 }
 
+func marqueeArea() image.Rectangle {
+	return image.Rect(rMarquee.Min.X+3, rMarquee.Min.Y+1, rMarquee.Max.X-3, rMarquee.Max.Y-1)
+}
+
 // tri draws a pixel-art triangle h pixels tall pointing right (or left).
 func tri(dst *ebiten.Image, x, y, h int, right bool, c color.Color) {
 	for i := 0; i <= h/2; i++ {
@@ -657,13 +754,71 @@ func icon(dst *ebiten.Image, a string, r image.Rectangle, c color.Color) {
 	}
 }
 
+// Pixel art for the mode toggles, drawn 1:1 like the transport icons so they stay crisp.
+var (
+	shuffleArt = []string{
+		".........#.",
+		"##....#####",
+		"##....#####",
+		"..##.##..#.",
+		"...###.....",
+		"...###.....",
+		"..##.##..#.",
+		"##....#####",
+		"##....#####",
+		".........#.",
+	}
+	repeatArt = []string{
+		".......#...",
+		".########..",
+		"#########..",
+		"##.....#...",
+		"##.........",
+		"##.........",
+		"##.........",
+		"##########.",
+		".#########.",
+	}
+)
+
+func modeIcon(dst *ebiten.Image, r image.Rectangle, shuffle bool, c color.Color) {
+	art := repeatArt
+	if shuffle {
+		art = shuffleArt
+	}
+	x := r.Min.X + (r.Dx()-len(art[0]))/2 + 4 // past the LED
+	y := r.Min.Y + (r.Dy()-len(art))/2
+	for j, row := range art {
+		for i, px := range row {
+			if px == '#' {
+				fill(dst, image.Rect(x+i, y+j, x+i+1, y+j+1), c)
+			}
+		}
+	}
+}
+
 func titleBar(dst *ebiten.Image, r image.Rectangle, s string) {
 	fill(dst, r, cBar)
+	fill(dst, image.Rect(r.Min.X, r.Min.Y, r.Max.X, r.Min.Y+1), cBtnLo)
+	fill(dst, image.Rect(r.Min.X, r.Max.Y-2, r.Max.X, r.Max.Y-1), cBlack)
 	w := int(text.Advance(s, face))
 	mid := r.Min.Y + r.Dy()/2
-	fill(dst, image.Rect(r.Min.X+16, mid-1, (r.Dx()-w)/2-4, mid+1), cGold)
-	fill(dst, image.Rect((r.Dx()+w)/2+4, mid-1, r.Max.X-16, mid+1), cGold)
-	centered(dst, s, r, cGold)
+	for _, y := range []int{mid - 3, mid, mid + 3} {
+		fill(dst, image.Rect(r.Min.X+16, y, (r.Dx()-w)/2-4, y+1), cGold)
+		fill(dst, image.Rect((r.Dx()+w)/2+4, y, r.Max.X-16, y+1), cGold)
+	}
+	label(dst, s, r.Min.X+(r.Dx()-w)/2, r.Min.Y+1, cWhite, 1)
+}
+
+// frame gives each pane an independent dark outline and inset highlight.
+func frame(dst *ebiten.Image, r image.Rectangle) {
+	fill(dst, image.Rect(r.Min.X, r.Min.Y, r.Max.X, r.Min.Y+1), cBlack)
+	fill(dst, image.Rect(r.Min.X, r.Max.Y-1, r.Max.X, r.Max.Y), cBlack)
+	fill(dst, image.Rect(r.Min.X, r.Min.Y, r.Min.X+1, r.Max.Y), cBlack)
+	fill(dst, image.Rect(r.Max.X-1, r.Min.Y, r.Max.X, r.Max.Y), cBlack)
+	fill(dst, image.Rect(r.Min.X+2, r.Max.Y-3, r.Max.X-2, r.Max.Y-2), cBtnLo)
+	fill(dst, image.Rect(r.Min.X+2, r.Min.Y+2, r.Min.X+3, r.Max.Y-2), cBtnLo)
+	fill(dst, image.Rect(r.Max.X-3, r.Min.Y+2, r.Max.X-2, r.Max.Y-2), cBtnLo)
 }
 
 func (g *gui) Draw(screen *ebiten.Image) {
@@ -675,11 +830,17 @@ func (g *gui) Draw(screen *ebiten.Image) {
 	g.dirty = false
 	s := g.s
 	screen.Fill(cPanel)
+	// The two sections have the recessed, double-edged frame of the classic skin.
+	fill(screen, image.Rect(0, 14, gw, 15), cBtnLo)
+	fill(screen, image.Rect(0, 114, gw, 116), cBlack)
+	fill(screen, image.Rect(0, 130, gw, 131), cBtnLo)
+	sunken(screen, image.Rect(rList.Min.X-2, rList.Min.Y-2, rList.Max.X+2, rList.Max.Y+2))
+	fill(screen, image.Rect(0, gh-2, gw, gh-1), cBtnLo)
 
 	titleBar(screen, rTitle, "WIMAMP")
-	button(screen, rClose, "x")
+	button(screen, rClose, "x", g.down == rClose)
 	pinned := ebiten.IsWindowFloating()
-	raised(screen, rPin, pinned)
+	raised(screen, rPin, g.down == rPin)
 	led := cDim
 	if pinned {
 		led = cGreen
@@ -688,6 +849,11 @@ func (g *gui) Draw(screen *ebiten.Image) {
 
 	// LCD: state icon and elapsed time
 	fill(screen, rLCD, cBlack)
+	for y := rLCD.Min.Y + 2; y < rLCD.Max.Y-1; y += 2 {
+		for x := rLCD.Min.X + 2; x < rLCD.Max.X-1; x += 2 {
+			fill(screen, image.Rect(x, y, x+1, y+1), cBar)
+		}
+	}
 	st, t := "playing", fmtTime(s.Pos)
 	switch {
 	case g.err != nil || s.Idle:
@@ -711,61 +877,90 @@ func (g *gui) Draw(screen *ebiten.Image) {
 	if !g.volUntil.IsZero() {
 		msg, c = fmt.Sprintf("VOLUME: %d%%", int(s.Vol)), cGreen
 	}
-	area := rMarquee.Inset(3)
+	area := marqueeArea()
 	g.scrolls = int(text.Advance(msg, face)) > area.Dx()
 	if g.scrolls {
 		rs := []rune(msg + "  ***  ")
 		off := int(g.step % int64(len(rs)))
 		msg = string(rs[off:]) + string(rs[:off])
 	}
-	label(screen.SubImage(area).(*ebiten.Image), msg, area.Min.X, area.Min.Y, c, 1)
+	label(screen.SubImage(area).(*ebiten.Image), msg, area.Min.X, area.Min.Y, c, 0.75)
+
+	// Only show values actually provided by the player; no decorative bitrate or stereo indicators.
+	label(screen, fmt.Sprintf("VOL %d%%", int(s.Vol)), 106, 43, cGreen, 0.6)
+	if s.Dur > 0 {
+		label(screen, fmtTime(s.Dur), 169, 43, cGreen, 0.6)
+	}
 
 	// volume, shuffle, repeat
-	track, vc := rVol.Inset(2), volColor(s.Vol) // the whole track takes the level's color
-	fill(screen, track, vc)
-	fill(screen, image.Rect(track.Min.X, track.Min.Y, track.Max.X, track.Min.Y+1), lerp(vc, cWhite, 0.35))
-	fill(screen, image.Rect(track.Min.X, track.Max.Y-1, track.Max.X, track.Max.Y), lerp(vc, cBlack, 0.4))
+	track, vc := rVol.Inset(2), volColor(s.Vol)
+	fill(screen, image.Rect(track.Min.X, track.Min.Y-1, track.Max.X, track.Max.Y+1), lerp(cPanel, vc, 0.25))
+	fill(screen, track, lerp(vc, cPanel, 0.25))
+	fill(screen, image.Rect(track.Min.X, track.Min.Y+1, track.Max.X, track.Max.Y-1), lerp(vc, cWhite, 0.18))
 	const kw = 14
 	kx := rVol.Min.X + int(min(s.Vol, 100)/100*float64(rVol.Dx()-kw))
 	grip(screen, image.Rect(kx, rVol.Min.Y-2, kx+kw, rVol.Max.Y+2))
 	for _, t := range []struct {
-		r  image.Rectangle
-		s  string
-		on bool
-	}{{rShuf, "SHF", s.Shuffle}, {rRep, "REP", s.Repeat}} {
-		raised(screen, t.r, t.on)
+		r       image.Rectangle
+		shuffle bool
+		on      bool
+	}{{rShuf, true, s.Shuffle}, {rRep, false, s.Repeat}} {
+		pressed := g.down == t.r
+		bevel(screen, t.r, pressed)
+		r := t.r
+		if pressed {
+			r = r.Add(image.Pt(1, 1))
+		}
 		led := cDim
 		if t.on {
 			led = cGreen
 		}
-		fill(screen, image.Rect(t.r.Min.X+3, t.r.Min.Y+6, t.r.Min.X+6, t.r.Min.Y+9), led)
-		label(screen, t.s, t.r.Min.X+9, t.r.Min.Y, cInk, 1)
+		my := r.Min.Y + r.Dy()/2
+		fill(screen, image.Rect(r.Min.X+5, my-2, r.Min.X+9, my+2), led)
+		modeIcon(screen, r, t.shuffle, cInk)
 	}
 
 	// seek bar
-	sunken(screen, rSeek)
+	fill(screen, rSeek, cBtnLo)
+	fill(screen, image.Rect(rSeek.Min.X+1, rSeek.Min.Y+1, rSeek.Max.X-1, rSeek.Max.Y-1), cBar)
+	fill(screen, image.Rect(rSeek.Min.X+1, rSeek.Min.Y+1, rSeek.Max.X-1, rSeek.Min.Y+2), cDark)
 	f := 0.0
 	if g.drag == "seek" {
 		f = g.seekFrac
 	} else if s.Dur > 0 {
 		f = s.Pos / s.Dur
 	}
-	const sw = 30 // wider than the volume knob, as in the original
+	const sw = 28 // wider than the volume knob, as in the original
 	sx := rSeek.Min.X + int(f*float64(rSeek.Dx()-sw))
-	grip(screen, image.Rect(sx, rSeek.Min.Y-2, sx+sw, rSeek.Max.Y+2))
+	seekKnob := image.Rect(sx, rSeek.Min.Y-2, sx+sw, rSeek.Max.Y+2)
+	fill(screen, seekKnob, cBlack)
+	fill(screen, seekKnob.Inset(1), cGold)
+	fill(screen, image.Rect(sx+2, seekKnob.Min.Y+2, sx+sw-2, seekKnob.Max.Y-2), cBtnLo)
+	fill(screen, image.Rect(sx+3, seekKnob.Min.Y+3, sx+sw-3, seekKnob.Max.Y-3), cGold)
+	fill(screen, image.Rect(sx+4, seekKnob.Min.Y+3, sx+sw-4, seekKnob.Min.Y+4), cBtnHi)
 
 	for i, a := range transportActions {
-		raised(screen, transport(i), false)
-		icon(screen, a, transport(i), cInk)
+		r := transport(i)
+		pressed := g.down == r
+		bevel(screen, r, pressed)
+		if pressed {
+			r = r.Add(image.Pt(1, 1))
+		}
+		icon(screen, a, r.Add(image.Pt(1, 1)), cBtnHi)
+		icon(screen, a, r, cInk)
 	}
 
 	// playlist
-	titleBar(screen, rPLTitle, "PLAYLIST")
+	titleBar(screen, rPLTitle, "WIMAMP PLAYLIST")
 	fill(screen, rList, cBlack)
 	if len(s.List) == 0 {
-		label(screen, "empty - a: add files, ?: keys", rList.Min.X+4, rList.Min.Y, cDim, 1)
+		label(screen, "empty - a: add files, ?: keys", rList.Min.X+4, rList.Min.Y, cDim, 0.75)
 	}
 	idx, sel, top := g.view()
+	fill(screen, rScroll, cDark)
+	thumb := scrollThumb(len(idx), top)
+	raised(screen, thumb, false)
+	fill(screen, image.Rect(thumb.Min.X+2, thumb.Min.Y+3, thumb.Max.X-2, thumb.Max.Y-3), cGold)
 	for n := top; n < len(idx) && n < top+rows; n++ {
 		i := idx[n]
 		e := s.List[i]
@@ -774,8 +969,10 @@ func (g *gui) Draw(screen *ebiten.Image) {
 			fill(screen, image.Rect(rList.Min.X, y, rList.Max.X, y+rowH), cSel)
 		}
 		c, right := cGreen, ""
-		if e.Current {
+		if n == sel {
 			c = cWhite
+		}
+		if e.Current {
 			if s.Dur > 0 {
 				right = fmtTime(s.Dur)
 			}
@@ -786,9 +983,9 @@ func (g *gui) Draw(screen *ebiten.Image) {
 	}
 
 	// bottom bar: ADD/REM, then an error or the position
-	button(screen, rAdd, "ADD")
-	button(screen, rRem, "REM")
-	info, c := fmt.Sprintf("%d/%d", g.cursor+1, len(s.List)), cGreen
+	button(screen, rAdd, "ADD", g.down == rAdd)
+	button(screen, rRem, "REM", g.down == rRem)
+	info, c := fmt.Sprintf("%d/%d", min(g.cursor+1, len(s.List)), len(s.List)), cGreen
 	if g.flash != "" {
 		info, c = g.flash, cErr
 	}
@@ -797,16 +994,18 @@ func (g *gui) Draw(screen *ebiten.Image) {
 	}
 	box := image.Rect(rRem.Max.X+6, rAdd.Min.Y, gw-8, rAdd.Max.Y)
 	fill(screen, box, cBlack)
-	label(screen, fit(info, box.Dx()-6), box.Min.X+3, box.Min.Y+1, c, 1)
+	label(screen, fit(info, box.Dx()-6), box.Min.X+3, box.Min.Y+2, c, 1)
 	if g.menu {
-		button(screen, rAddFile, "FILE")
-		button(screen, rAddDir, "DIR")
+		button(screen, rAddFile, "FILE", g.down == rAddFile)
+		button(screen, rAddDir, "DIR", g.down == rAddDir)
 	}
+	frame(screen, image.Rect(0, 0, gw, 116))
+	frame(screen, image.Rect(0, 116, gw, gh))
 	if g.help {
 		fill(screen, image.Rect(0, rTitle.Max.Y, gw, gh), cBlack)
 		for i, l := range helpLines(g.keys) {
 			y := rTitle.Max.Y + 4 + i*rowH
-			label(screen, l[0], 6, y, cGreen, 1)
+			label(screen, l[0], 6, y, cGreen, 0.75)
 			label(screen, l[1], gw-6-int(text.Advance(l[1], face)), y, cWhite, 1)
 		}
 		centered(screen, "press any key", image.Rect(0, gh-20, gw, gh-4), cDim)

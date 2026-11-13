@@ -4,7 +4,9 @@
 
 A keyboard-first music player for local files, in the spirit of Winamp. One small binary with a CLI, a TUI with vim keys, and a Winamp-style popup window you can summon with a hotkey. Playback is done by [mpv](https://mpv.io), which wimamp starts in the background on first use, so anything that can run a command (Raycast, Hammerspoon, i3, AutoHotkey, a status bar) can control it. No accounts, no streaming, no library database: files, folders and `.m3u` playlists.
 
-<p align="center"><img src="docs/screenshot.png" width="360" alt="The wimamp popup window: player controls above a green-on-black playlist"></p>
+<p align="center"><img src="docs/screenshot.png" width="300" alt="The wimamp popup window: player controls above a green-on-black playlist"></p>
+
+The popup uses a 300 × 374-point classic-inspired layout with beveled silver controls, striped title bars, and a green display. The crossing-arrows button toggles shuffle; the return-arrow button toggles repeat. Drag the playlist scrollbar to browse without changing the selected track. The pin button at the left of the title bar keeps the window on top and open when you click elsewhere.
 
 macOS is the primary platform. Linux and Windows builds are published too, but they get less testing.
 

@@ -33,8 +33,18 @@ func currentIndex(list []entry, def int) int {
 	return def
 }
 
-// playerAction returns the player call behind a key action, or nil when the action only affects the UI.
-func playerAction(a string, cursor int) func() error {
+// needsTrack lists the actions mpv rejects with an error while the playlist is empty.
+var needsTrack = map[string]bool{
+	"play": true, "resume": true, "toggle": true, "remove": true, "next": true, "prev": true,
+	"seek-forward": true, "seek-back": true,
+}
+
+// playerAction returns the player call behind a key action, or nil when the action only affects
+// the UI or needs a track and the playlist (n entries) is empty.
+func playerAction(a string, cursor, n int) func() error {
+	if n == 0 && needsTrack[a] {
+		return nil
+	}
 	switch a {
 	case "play":
 		return func() error { return playIndex(cursor) }
