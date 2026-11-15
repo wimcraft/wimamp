@@ -26,7 +26,7 @@ Then install wimamp. On macOS and Linux it goes into `~/.local/bin`:
 curl -fsSL https://raw.githubusercontent.com/wimcraft/wimamp/main/install.sh | sh
 ```
 
-On Windows, run this in PowerShell. It installs into `%LOCALAPPDATA%\Programs\wimamp` and adds that folder to your user PATH:
+On Windows, run this in PowerShell. It installs into `%LOCALAPPDATA%\Programs\wimamp`, adds that folder to your user PATH, and adds a **Wimamp** Start Menu entry that opens the window, so Raycast, PowerToys Run and Windows search find it (`$env:WIMAMP_NO_SHORTCUT = "1"` skips it):
 
 ```powershell
 irm https://raw.githubusercontent.com/wimcraft/wimamp/main/install.ps1 | iex
