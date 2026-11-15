@@ -153,6 +153,9 @@ func fetch() (state, error) {
 	json.Unmarshal(r[6], &s.Vol)
 	s.Repeat = string(r[7]) != "false" && r[7] != nil // "inf", a count, or false
 	json.Unmarshal(r[8], &s.Shuffle)
+	if i := currentIndex(s.List, -1); i >= 0 && s.Dur > 0 && !s.Idle {
+		learnLength(s.List[i].Filename, s.Dur)
+	}
 	return s, nil
 }
 

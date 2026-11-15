@@ -25,6 +25,7 @@ var helpRows = []struct {
 	{"remove selected", []string{"remove"}},
 	{"shuffle / repeat", []string{"shuffle", "repeat"}},
 	{"add files / folder", []string{"add-files", "add-folder"}},
+	{"always on top (window)", []string{"pin"}},
 	{"this help", []string{"help"}},
 	{"close", []string{"quit"}},
 	{"quit player", []string{"quit-player"}},

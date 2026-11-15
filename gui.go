@@ -140,6 +140,12 @@ func runGUI() error {
 		g.resident = true
 		go g.serve(ln)
 	}
+	lengths.wake = func() {
+		g.mu.Lock()
+		g.dirty = true
+		g.mu.Unlock()
+		ebiten.ScheduleFrame() //nolint:staticcheck
+	}
 	g.exec(nil)
 	go func() {
 		for range time.Tick(250 * time.Millisecond) {
@@ -154,7 +160,6 @@ func runGUI() error {
 	ebiten.SetWindowTitle("Wimamp")
 	ebiten.SetWindowSize(gw*scale, gh*scale)
 	ebiten.SetWindowDecorated(false)
-	ebiten.SetWindowFloating(true)
 	ebiten.SetScreenClearedEveryFrame(false) // Draw repaints only when dirty
 	// frames run only on input or ScheduleFrame (from the poller); the non-deprecated
 	// vsync/TPS settings still idle at ~5% CPU because every frame is presented.
@@ -231,6 +236,9 @@ func (g *gui) exec(f func() error) {
 	defer g.mu.Unlock()
 	if !reflect.DeepEqual(s, g.s) || (ferr == nil) != (g.err == nil) {
 		g.dirty = true
+		if !reflect.DeepEqual(s.List, g.s.List) {
+			go queueLengths(paths(s.List), false) // every entry, for the total; unchanged files cost a Stat
+		}
 	}
 	g.s, g.err = s, ferr
 	if err != nil {
@@ -360,6 +368,8 @@ func (g *gui) act(a string) {
 		g.help = true
 	case "add-files", "add-folder":
 		g.pick(a == "add-folder")
+	case "pin":
+		ebiten.SetWindowFloating(!ebiten.IsWindowFloating())
 	default:
 		if f := playerAction(a, g.cursor, len(g.s.List)); f != nil {
 			g.do(f)
@@ -449,7 +459,7 @@ func (g *gui) mouse() {
 		case p.In(rClose):
 			g.quit = true
 		case p.In(rPin):
-			ebiten.SetWindowFloating(!ebiten.IsWindowFloating())
+			g.act("pin")
 		case p.In(rTitle) || p.In(rPLTitle):
 			g.drag, g.dragX, g.dragY = "win", x, y
 		case p.In(rSeek.Inset(-3)):
@@ -961,6 +971,7 @@ func (g *gui) Draw(screen *ebiten.Image) {
 	thumb := scrollThumb(len(idx), top)
 	raised(screen, thumb, false)
 	fill(screen, image.Rect(thumb.Min.X+2, thumb.Min.Y+3, thumb.Max.X-2, thumb.Max.Y-3), cGold)
+	var visible []entry
 	for n := top; n < len(idx) && n < top+rows; n++ {
 		i := idx[n]
 		e := s.List[i]
@@ -968,24 +979,22 @@ func (g *gui) Draw(screen *ebiten.Image) {
 		if n == sel {
 			fill(screen, image.Rect(rList.Min.X, y, rList.Max.X, y+rowH), cSel)
 		}
-		c, right := cGreen, ""
-		if n == sel {
+		c, right := cGreen, rowLength(e, s)
+		if e.Current { // as in Winamp: the playing entry is white, the selection a blue bar
 			c = cWhite
 		}
-		if e.Current {
-			if s.Dur > 0 {
-				right = fmtTime(s.Dur)
-			}
-		}
+		visible = append(visible, e)
 		rw := int(text.Advance(right, face))
 		label(screen, fit(fmt.Sprintf("%d. %s", i+1, e.name()), rList.Dx()-8-rw), rList.Min.X+3, y, c, 1)
 		label(screen, right, rList.Max.X-3-rw, y, c, 1)
 	}
 
-	// bottom bar: ADD/REM, then an error or the position
+	queueMissing(visible, true)
+
+	// bottom bar: ADD/REM, then an error or the position and total length
 	button(screen, rAdd, "ADD", g.down == rAdd)
 	button(screen, rRem, "REM", g.down == rRem)
-	info, c := fmt.Sprintf("%d/%d", min(g.cursor+1, len(s.List)), len(s.List)), cGreen
+	info, c := strings.TrimSpace(fmt.Sprintf("%d/%d  %s", min(g.cursor+1, len(s.List)), len(s.List), totalLength(s.List))), cGreen
 	if g.flash != "" {
 		info, c = g.flash, cErr
 	}
