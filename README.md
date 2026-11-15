@@ -6,7 +6,7 @@ A keyboard-first music player for local files, in the spirit of Winamp. One smal
 
 <p align="center"><img src="docs/screenshot.png" width="300" alt="The wimamp popup window: player controls above a green-on-black playlist"></p>
 
-The popup uses a 300 × 374-point classic-inspired layout with beveled silver controls, striped title bars, and a green display. The crossing-arrows button toggles shuffle; the return-arrow button toggles repeat. Drag the playlist scrollbar to browse without changing the selected track. The pin button at the left of the title bar keeps the window on top and open when you click elsewhere.
+The popup uses a 300 × 374-point classic-inspired layout with beveled silver controls, striped title bars, and a green display. The crossing-arrows button toggles shuffle; the return-arrow button toggles repeat. Drag the playlist scrollbar to browse without changing the selected track. The pin button at the left of the title bar, or `ctrl+a`, keeps the window on top and open when you click elsewhere; it starts off. The playing track is shown in white.
 
 The playlist in the window and the TUI shows each track's length and the playlist's total. Lengths are read from the file headers of MP3, FLAC, Ogg Vorbis, Opus, M4A/MP4 (AAC and ALAC), WAV and AIFF files in the background. Other formats get their length once they have played. The total ends in `+` while some lengths are still unknown.
 
@@ -74,6 +74,7 @@ The same keys work in the TUI and the window. Press `?` in either one, or run `w
 | shuffle / repeat | `S` / `r` | add files / folder (window) | `a` / `A` |
 | search, jump to track | `/` `ctrl+j` | key help | `?` |
 | close | `q` (window: also Esc) | quit the player | `Q` |
+| always on top (window) | `ctrl+a` | | |
 
 Search filters the playlist as you type, by name or folder. Names containing the query come first, then fuzzy matches. Use `up`/`down` or `ctrl+n`/`ctrl+p` to pick a match, `enter` to play it, and Esc to cancel. In the window, `ctrl+m`, `ctrl+i`, `ctrl+h` and `ctrl+[` work as Enter, Tab, Backspace and Esc, as they do in a terminal.
 

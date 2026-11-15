@@ -160,7 +160,6 @@ func runGUI() error {
 	ebiten.SetWindowTitle("Wimamp")
 	ebiten.SetWindowSize(gw*scale, gh*scale)
 	ebiten.SetWindowDecorated(false)
-	ebiten.SetWindowFloating(true)
 	ebiten.SetScreenClearedEveryFrame(false) // Draw repaints only when dirty
 	// frames run only on input or ScheduleFrame (from the poller); the non-deprecated
 	// vsync/TPS settings still idle at ~5% CPU because every frame is presented.
@@ -369,6 +368,8 @@ func (g *gui) act(a string) {
 		g.help = true
 	case "add-files", "add-folder":
 		g.pick(a == "add-folder")
+	case "pin":
+		ebiten.SetWindowFloating(!ebiten.IsWindowFloating())
 	default:
 		if f := playerAction(a, g.cursor, len(g.s.List)); f != nil {
 			g.do(f)
@@ -458,7 +459,7 @@ func (g *gui) mouse() {
 		case p.In(rClose):
 			g.quit = true
 		case p.In(rPin):
-			ebiten.SetWindowFloating(!ebiten.IsWindowFloating())
+			g.act("pin")
 		case p.In(rTitle) || p.In(rPLTitle):
 			g.drag, g.dragX, g.dragY = "win", x, y
 		case p.In(rSeek.Inset(-3)):
@@ -979,7 +980,7 @@ func (g *gui) Draw(screen *ebiten.Image) {
 			fill(screen, image.Rect(rList.Min.X, y, rList.Max.X, y+rowH), cSel)
 		}
 		c, right := cGreen, rowLength(e, s)
-		if n == sel {
+		if e.Current { // as in Winamp: the playing entry is white, the selection a blue bar
 			c = cWhite
 		}
 		visible = append(visible, e)

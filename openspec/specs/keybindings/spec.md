@@ -24,6 +24,7 @@ The system SHALL provide these default bindings in both the TUI and the popup wi
 | remove selected | `dd` |
 | shuffle / repeat toggle | `S` / `r` |
 | add files / add folder (window only, opens the native picker) | `a` / `A` |
+| always on top on/off (window only) | `ctrl+a` |
 | search / jump to track | `/` `ctrl+j` |
 | key help | `?` |
 | close the interface | `q` |

@@ -6,7 +6,7 @@ Defines `wimamp gui`, a small Winamp-style window that a hotkey can summon to ch
 ## Requirements
 
 ### Requirement: Layout
-The window SHALL have a main panel and a playlist panel, in the classic Winamp style, using original artwork with no Winamp assets or branding. The main panel SHALL show elapsed time in large seven-segment digits, the scrolling title of the playing track, prev/play/pause/stop/next buttons, a seek bar, a volume slider, and shuffle and repeat toggles. The playlist panel SHALL show numbered entries with the playing one marked, the selected one highlighted, a scrollbar, and ADD and REM buttons below. There SHALL be no equalizer, visualizer, album art or lyrics. The volume percentage SHALL be shown above the volume slider, whose track SHALL be colored by level, from green at low volume through yellow to red at full volume. While the volume is being changed, the title area SHALL show the volume percentage instead of the title for about a second.
+The window SHALL have a main panel and a playlist panel, in the classic Winamp style, using original artwork with no Winamp assets or branding. The main panel SHALL show elapsed time in large seven-segment digits, the scrolling title of the playing track, prev/play/pause/stop/next buttons, a seek bar, a volume slider, and shuffle and repeat toggles. The playlist panel SHALL show numbered entries with the playing one in white text, the selected one highlighted with a bar, a scrollbar, and ADD and REM buttons below. There SHALL be no equalizer, visualizer, album art or lyrics. The volume percentage SHALL be shown above the volume slider, whose track SHALL be colored by level, from green at low volume through yellow to red at full volume. While the volume is being changed, the title area SHALL show the volume percentage instead of the title for about a second.
 
 #### Scenario: Open while playing
 - **WHEN** a track is playing and the user runs `wimamp gui`
@@ -75,7 +75,7 @@ While open, the window SHALL redraw only on input, on a status change, or to scr
 - **THEN** it does not poll the player, and its CPU use measures as 0.0% in `top`
 
 ### Requirement: Always on top
-A pin button in the title bar SHALL toggle keeping the window above other windows, with an indicator light showing whether it is on. While pinned, the window SHALL stay open when it loses focus. The setting SHALL last until the window process ends.
+A pin button in the title bar and the `ctrl+a` key SHALL toggle keeping the window above other windows, with an indicator light showing whether it is on. It SHALL be off when the window process starts. While pinned, the window SHALL stay open when it loses focus. The setting SHALL last until the window process ends.
 
 #### Scenario: Pinned window loses focus
 - **WHEN** the window is pinned and the user clicks another application
