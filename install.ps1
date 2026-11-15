@@ -1,7 +1,7 @@
 # Install or update wimamp on Windows from GitHub releases:
 #   irm https://raw.githubusercontent.com/wimcraft/wimamp/main/install.ps1 | iex
 # Options (env): WIMAMP_VERSION=v0.1.0 (default: latest),
-#   WIMAMP_INSTALL_DIR (default: %LOCALAPPDATA%\Programs\wimamp)
+#   WIMAMP_INSTALL_DIR (default: %LOCALAPPDATA%\Programs\wimamp), WIMAMP_NO_SHORTCUT=1 (no Start Menu entry)
 # Works in Windows PowerShell 5.1 and PowerShell 7+. Everything runs inside a function, because a
 # script piped to iex shares the caller's session: no leaked variables, and errors throw rather
 # than `exit`, which would close the user's window.
@@ -84,16 +84,32 @@ function Install-Wimamp {
 	}
 	if (($env:Path -split ';') -notcontains $dir) { $env:Path = "$env:Path;$dir" }
 
-	if (-not (Get-Command mpv -ErrorAction SilentlyContinue)) {
+	# A Start Menu shortcut to the window, so launchers that index the Start Menu (Raycast, PowerToys Run,
+	# Windows search) list wimamp. Re-running rewrites it, so it follows WIMAMP_INSTALL_DIR.
+	if ($env:WIMAMP_NO_SHORTCUT -ne '1') {
+		$lnk = Join-Path ([Environment]::GetFolderPath('Programs')) 'Wimamp.lnk'
+		try {
+			$s = (New-Object -ComObject WScript.Shell).CreateShortcut($lnk)
+			$s.TargetPath = $target
+			$s.Arguments = 'gui'
+			$s.WorkingDirectory = $dir
+			$s.WindowStyle = 7 # minimized: wimamp.exe is a console program, this keeps its console from flashing up
+			$s.Description = 'wimamp music player'
+			$s.Save()
+			Write-Host "Added Wimamp to the Start Menu."
+		} catch {
+			Write-Host "Could not create the Start Menu shortcut ($($_.Exception.Message)); wimamp itself is installed."
+		}
+	}
+
+	# wimamp also finds mpv where `winget install shinchiro.mpv` puts it, which is not on PATH
+	$winget = Join-Path $env:ProgramFiles 'MPV Player'
+	if (-not (Get-Command mpv -ErrorAction SilentlyContinue) -and -not (Test-Path (Join-Path $winget 'mpv.exe'))) {
 		# this session's PATH may predate an mpv install, so also look at the saved one
 		$saved = ([Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')) -split ';' |
 			Where-Object { $_ -and (Test-Path -LiteralPath (Join-Path ([Environment]::ExpandEnvironmentVariables($_)) 'mpv.exe')) }
-		$winget = Join-Path $env:ProgramFiles 'MPV Player' # where `winget install shinchiro.mpv` puts it, without touching PATH
 		if ($saved) {
 			Write-Host 'mpv is on your PATH, but this terminal started before it was added: open a new one.'
-		} elseif (Test-Path (Join-Path $winget 'mpv.exe')) {
-			Write-Host "mpv is installed in $winget but not on your PATH. Add it with:"
-			Write-Host "  [Environment]::SetEnvironmentVariable('Path', [Environment]::GetEnvironmentVariable('Path', 'User') + ';$winget', 'User')"
 		} else {
 			Write-Host 'wimamp plays through mpv, which is not installed yet:'
 			Write-Host '  winget install -e --id shinchiro.mpv'
