@@ -51,10 +51,10 @@ func (s *search) key(k string, list []entry) (i int, queue bool) {
 		if m := match(list, s.q); s.sel < len(m) {
 			return m[s.sel], false
 		}
-	case "ctrl+e":
+	case "ctrl+e": // queue and step to the next match, so a few presses queue several tracks
 		if m := match(list, s.q); s.sel < len(m) {
 			i := m[s.sel]
-			s.q, s.sel = "", 0
+			s.sel = min(s.sel+1, len(m)-1)
 			return i, true
 		}
 	case "backspace":
@@ -74,4 +74,20 @@ func (s *search) key(k string, list []entry) (i int, queue bool) {
 	}
 	s.sel = max(min(s.sel, len(match(list, s.q))-1), 0)
 	return -1, false
+}
+
+// searchName is how a search result is listed: when q matched a folder rather than the name,
+// that folder goes in front, so it is clear why the row matched ("Bad Religion / 03. You Are").
+func searchName(e entry, q string) string {
+	name := e.name()
+	q = strings.ToLower(q)
+	if q == "" || strings.Contains(strings.ToLower(name), q) {
+		return name
+	}
+	for d := filepath.Dir(e.Filename); d != filepath.Dir(d); d = filepath.Dir(d) {
+		if b := filepath.Base(d); strings.Contains(strings.ToLower(b), q) {
+			return b + " / " + name
+		}
+	}
+	return name // a fuzzy match
 }

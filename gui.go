@@ -1010,7 +1010,7 @@ func (g *gui) Draw(screen *ebiten.Image) {
 		}
 		visible = append(visible, e)
 		rw := int(text.Advance(right, face))
-		label(screen, fit(fmt.Sprintf("%d. %s%s", i+1, queueMark(e, s.Queue), e.name()), rList.Dx()-8-rw), rList.Min.X+3, y, c, 1)
+		label(screen, fit(fmt.Sprintf("%d. %s%s", i+1, queueMark(e, s.Queue), g.rowName(e)), rList.Dx()-8-rw), rList.Min.X+3, y, c, 1)
 		label(screen, right, rList.Max.X-3-rw, y, c, 1)
 	}
 
@@ -1047,4 +1047,11 @@ func (g *gui) Draw(screen *ebiten.Image) {
 		}
 		centered(screen, "press any key", image.Rect(0, gh-20, gw, gh-4), cDim)
 	}
+}
+
+func (g *gui) rowName(e entry) string {
+	if g.search.on {
+		return searchName(e, g.search.q)
+	}
+	return e.name()
 }

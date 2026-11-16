@@ -232,7 +232,7 @@ func (m *model) View() string {
 		if e.Current {
 			mark = "▶ "
 		}
-		line := rightAlign(fmt.Sprintf("%s%3d. %s%s", mark, idx[n]+1, queueMark(e, m.s.Queue), e.name()), rowLength(e, m.s), m.w-1)
+		line := rightAlign(fmt.Sprintf("%s%3d. %s%s", mark, idx[n]+1, queueMark(e, m.s.Queue), m.rowName(e)), rowLength(e, m.s), m.w-1)
 		if n == sel {
 			line = "\x1b[7m" + line + "\x1b[0m"
 		}
@@ -265,4 +265,11 @@ func rightAlign(left, right string, width int) string {
 		l = append(l[:room-1], '…')
 	}
 	return string(l) + strings.Repeat(" ", room-len(l)+1) + right
+}
+
+func (m *model) rowName(e entry) string {
+	if m.srch.on {
+		return searchName(e, m.srch.q)
+	}
+	return e.name()
 }

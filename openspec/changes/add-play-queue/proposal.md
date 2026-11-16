@@ -4,7 +4,7 @@ Winamp's Jump To File Extra (JTFE) made the queue a habit: find a song, queue it
 
 ## What Changes
 
-- A play queue: `e` queues the selected track (or unqueues it), `ctrl+e` queues the highlighted search match and keeps the search open for the next one. Queued tracks play next, in the order queued, then the playlist continues after the last of them, as in Winamp. The playlist order never changes.
+- A play queue: `e` queues the selected track (or unqueues it), `ctrl+e` queues the highlighted search match and moves to the next one, keeping the search. Search results that matched a folder show it before the name. Queued tracks play next, in the order queued, then the playlist continues after the last of them, as in Winamp. The playlist order never changes.
 - `next` (key, button and `wimamp next`) plays the first queued track when there is one.
 - Queued rows show their place, `[1]`, `[2]`…, before the name, in the window and the TUI.
 - A queue view instead of JTFE's queue manager window: `E` turns the playlist panel into the queue (title `WIMAMP QUEUE` in the window). There `enter` plays, `e` or `dd` unqueue without touching the playlist, `J` / `K` move a track later or earlier, `E` or Esc go back.
@@ -18,6 +18,7 @@ Out of scope: saving or loading the queue, saving search results as a playlist, 
 
 ### Modified Capabilities
 - `playlists`: a play queue and a queue view.
+- `track-search`: queueing from search, and showing the folder a result matched.
 - `keybindings`: default keys for queueing, the queue view and moving within it.
 
 ## Impact

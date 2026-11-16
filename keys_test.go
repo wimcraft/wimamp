@@ -77,8 +77,11 @@ func TestSearch(t *testing.T) {
 	for _, k := range []string{"e", "c", "h", "o", "down"} {
 		s.key(k, list)
 	}
-	if idx, q := s.key("ctrl+e", list); idx != 3 || !q || !s.on || s.q != "" {
-		t.Fatalf("ctrl+e: idx %d queue %v on %v query %q", idx, q, s.on, s.q)
+	if idx, q := s.key("ctrl+e", list); idx != 3 || !q || !s.on || s.q != "echo" || s.sel != 2 {
+		t.Fatalf("ctrl+e: idx %d queue %v on %v query %q sel %d", idx, q, s.on, s.q, s.sel)
+	}
+	if idx, _ := s.key("ctrl+e", list); idx != 0 || s.sel != 2 { // the last match stays selected
+		t.Fatalf("second ctrl+e: idx %d sel %d", idx, s.sel)
 	}
 	s = search{on: true}
 	s.key("x", list)
@@ -93,6 +96,21 @@ func TestHelpReflectsOverrides(t *testing.T) {
 	for _, l := range helpLines(keys) {
 		if l[0] == "next / prev track" && l[1] != "J / p z" {
 			t.Fatalf("got %q", l[1])
+		}
+	}
+}
+
+func TestSearchName(t *testing.T) {
+	e := entry{Filename: "/music/Bad Religion/1988 - Suffer/03. You Are.mp3"}
+	for q, want := range map[string]string{
+		"religion": "Bad Religion / 03. You Are", // matched the artist folder
+		"suffer":   "1988 - Suffer / 03. You Are",
+		"you are":  "03. You Are", // matched the name: no folder needed
+		"":         "03. You Are",
+		"brlgn":    "03. You Are", // fuzzy
+	} {
+		if got := searchName(e, q); got != want {
+			t.Errorf("%q: %q, want %q", q, got, want)
 		}
 	}
 }
