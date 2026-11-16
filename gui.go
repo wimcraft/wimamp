@@ -106,6 +106,7 @@ type gui struct {
 	queueOn      bool // the playlist panel shows the queue
 	qsel, qtop   int
 	dialog       atomic.Bool
+	refocus      atomic.Bool // the picker just closed: take focus back before the focus check runs
 	wasFocused   bool
 	quit         bool
 	resident     bool // closing hides the window and the process waits for the next `wimamp gui`
@@ -277,6 +278,9 @@ func (g *gui) Update() error {
 	switch {
 	case g.dialog.Load():
 		g.wasFocused = false
+	case g.refocus.Swap(false): // macOS hands focus to the previous app when the picker closes
+		activate()
+		g.wasFocused = false
 	case g.wasFocused && !f && !ebiten.IsWindowFloating(): // pinned on top: stay open
 		return g.closeWin()
 	default:
@@ -418,7 +422,11 @@ func (g *gui) pick(dir bool) {
 		return
 	}
 	go func() {
-		defer g.dialog.Store(false)
+		defer func() {
+			g.refocus.Store(true) // set before clearing dialog, so no frame sees neither flag
+			g.dialog.Store(false)
+			ebiten.ScheduleFrame() //nolint:staticcheck
+		}()
 		var paths []string
 		var err error
 		if dir {
