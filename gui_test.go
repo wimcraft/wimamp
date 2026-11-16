@@ -58,13 +58,15 @@ func TestVolColor(t *testing.T) {
 func TestPlaylistScrollKeepsSelectionVisible(t *testing.T) {
 	g := gui{s: state{List: make([]entry, 20)}, cursor: 13}
 	g.keepVisible()
-	_, sel, top := g.view()
+	_, selp, topp := g.view()
+	sel, top := *selp, *topp
 	if sel != 13 || top != 1 {
 		t.Fatalf("selection %d, top %d; want 13, 1", sel, top)
 	}
 	g.cursor = 0
 	g.keepVisible()
-	_, sel, top = g.view()
+	_, selp, topp = g.view()
+	sel, top = *selp, *topp
 	if sel != 0 || top != 0 {
 		t.Fatalf("selection %d, top %d; want 0, 0", sel, top)
 	}
@@ -75,7 +77,8 @@ func TestScrollbarPreservesSelection(t *testing.T) {
 	bottom := rScroll.Max.Y - scrollThumbHeight
 	g.scrollTo(bottom)
 	g.clamp()
-	_, sel, top := g.view()
+	_, selp, topp := g.view()
+	sel, top := *selp, *topp
 	if sel != 2 || top != 27 || scrollThumb(40, top).Max.Y != rScroll.Max.Y {
 		t.Fatalf("selection %d, top %d, thumb %v; want 2, 27, bottom", sel, top, scrollThumb(40, top))
 	}
@@ -87,7 +90,8 @@ func TestScrollbarPreservesSelection(t *testing.T) {
 	g.search.sel = 3
 	g.scrollTo(bottom)
 	g.clamp()
-	_, sel, top = g.view()
+	_, selp, topp = g.view()
+	sel, top = *selp, *topp
 	if sel != 3 || top != 27 {
 		t.Fatalf("search selection %d, top %d; want 3, 27", sel, top)
 	}
@@ -119,5 +123,25 @@ func TestPlayerActionEmptyPlaylist(t *testing.T) {
 		if playerAction(a, 0, 0) == nil {
 			t.Errorf("%s should still work on an empty playlist", a)
 		}
+	}
+}
+
+func TestQueueView(t *testing.T) {
+	g := &gui{queueOn: true}
+	g.s.List = []entry{{ID: 1}, {ID: 2}, {ID: 3}}
+	g.s.Queue = []int{3, 9, 1} // 9 is gone from the playlist
+	g.qsel = 5
+	g.keepVisible()
+	idx, sel, _ := g.view()
+	if len(idx) != 2 || idx[0] != 2 || idx[1] != 0 || *sel != 1 {
+		t.Fatalf("queue rows %v, selection %d; want [2 0], 1", idx, *sel)
+	}
+	g.act("up") // navigation moves the queue selection, not the playlist cursor
+	if g.qsel != 0 || g.cursor != 0 {
+		t.Fatalf("qsel %d cursor %d", g.qsel, g.cursor)
+	}
+	g.act("queue-view")
+	if g.queueOn {
+		t.Fatal("E did not leave the queue view")
 	}
 }

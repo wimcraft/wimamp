@@ -70,13 +70,23 @@ func TestSearch(t *testing.T) {
 	if s.sel != 1 {
 		t.Fatalf("sel = %d", s.sel)
 	}
-	if idx := s.key("enter", list); idx != 3 || s.on {
-		t.Fatalf("enter: idx %d on %v", idx, s.on)
+	if idx, q := s.key("enter", list); idx != 3 || q || s.on {
+		t.Fatalf("enter: idx %d queue %v on %v", idx, q, s.on)
+	}
+	s = search{on: true}
+	for _, k := range []string{"e", "c", "h", "o", "down"} {
+		s.key(k, list)
+	}
+	if idx, q := s.key("ctrl+e", list); idx != 3 || !q || !s.on || s.q != "echo" || s.sel != 2 {
+		t.Fatalf("ctrl+e: idx %d queue %v on %v query %q sel %d", idx, q, s.on, s.q, s.sel)
+	}
+	if idx, _ := s.key("ctrl+e", list); idx != 0 || s.sel != 2 { // the last match stays selected
+		t.Fatalf("second ctrl+e: idx %d sel %d", idx, s.sel)
 	}
 	s = search{on: true}
 	s.key("x", list)
 	s.key("backspace", list)
-	if s.q != "" || s.key("esc", list) != -1 || s.on {
+	if i, _ := s.key("esc", list); s.q != "" || i != -1 || s.on {
 		t.Fatal("backspace/esc")
 	}
 }
@@ -86,6 +96,21 @@ func TestHelpReflectsOverrides(t *testing.T) {
 	for _, l := range helpLines(keys) {
 		if l[0] == "next / prev track" && l[1] != "J / p z" {
 			t.Fatalf("got %q", l[1])
+		}
+	}
+}
+
+func TestSearchName(t *testing.T) {
+	e := entry{Filename: "/music/Bad Religion/1988 - Suffer/03. You Are.mp3"}
+	for q, want := range map[string]string{
+		"religion": "Bad Religion / 03. You Are", // matched the artist folder
+		"suffer":   "1988 - Suffer / 03. You Are",
+		"you are":  "03. You Are", // matched the name: no folder needed
+		"":         "03. You Are",
+		"brlgn":    "03. You Are", // fuzzy
+	} {
+		if got := searchName(e, q); got != want {
+			t.Errorf("%q: %q, want %q", q, got, want)
 		}
 	}
 }

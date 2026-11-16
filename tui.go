@@ -26,6 +26,8 @@ type model struct {
 	w              int
 	synced, help   bool
 	srch           search
+	queueOn        bool // the list shows the queue
+	qsel           int
 }
 
 func runTUI() error {
@@ -117,10 +119,14 @@ func (m *model) key(k string) tea.Cmd {
 	case m.help: // any key closes the help
 		m.help = false
 	case m.srch.on:
-		if i := m.srch.key(k, m.s.List); i >= 0 {
+		if i, queue := m.srch.key(k, m.s.List); queue {
+			return run(playerAction("queue", i, len(m.s.List)))
+		} else if i >= 0 {
 			m.cursor = i
 			return run(playerAction("play", i, len(m.s.List)))
 		}
+	case k == "esc" && m.queueOn:
+		m.queueOn = false
 	default:
 		return m.do(resolve(m.keys, &m.pending, k))
 	}
@@ -128,13 +134,35 @@ func (m *model) key(k string) tea.Cmd {
 }
 
 func (m *model) do(a string) tea.Cmd {
-	if c, ok := moveCursor(a, m.cursor, m.h, m.s.List); ok {
+	cursor := m.cursor
+	if m.queueOn {
+		idx := queueIndices(m.s.List, m.s.Queue)
+		if c, ok := moveCursor(a, m.qsel, m.h-1, rowEntries(m.s.List, idx)); ok {
+			m.qsel = c
+			return nil
+		}
+		a = queueAction(a)
+		if m.qsel >= len(idx) && onRow[a] {
+			return nil
+		}
+		if m.qsel < len(idx) {
+			cursor = idx[m.qsel]
+		}
+		switch a { // the selection follows the moved entry
+		case "queue-later":
+			m.qsel++
+		case "queue-earlier":
+			m.qsel--
+		}
+	} else if c, ok := moveCursor(a, m.cursor, m.h, m.s.List); ok {
 		m.cursor = c
 		return nil
 	}
 	switch a {
+	case "queue-view":
+		m.queueOn, m.qsel = !m.queueOn, 0
 	case "search":
-		m.srch = search{on: true}
+		m.srch, m.queueOn = search{on: true}, false
 	case "help":
 		m.help = true
 	case "quit":
@@ -142,13 +170,14 @@ func (m *model) do(a string) tea.Cmd {
 	case "quit-player":
 		return tea.Sequence(func() tea.Msg { call(simple["quit"]); return nil }, tea.Quit)
 	}
-	if f := playerAction(a, m.cursor, len(m.s.List)); f != nil {
+	if f := playerAction(a, cursor, len(m.s.List)); f != nil {
 		return run(f)
 	}
 	return nil // e.g. add-files: window only
 }
 
 func (m *model) clamp() {
+	m.qsel = max(min(m.qsel, len(queueIndices(m.s.List, m.s.Queue))-1), 0)
 	m.cursor = max(min(m.cursor, len(m.s.List)-1), 0)
 	if m.cursor < m.top {
 		m.top = m.cursor
@@ -181,10 +210,19 @@ func (m *model) View() string {
 	for i := range idx {
 		idx[i] = i
 	}
-	if m.srch.on {
+	switch {
+	case m.srch.on:
 		h--
 		idx, sel = match(m.s.List, m.srch.q), m.srch.sel
 		top = max(0, sel-h+1)
+	case m.queueOn:
+		h--
+		idx, sel = queueIndices(m.s.List, m.s.Queue), m.qsel
+		top = max(0, sel-h+1)
+		fmt.Fprintf(&b, "queue (%d)   e/dd: unqueue  J/K: move  E/esc: back\n", len(idx))
+		if len(idx) == 0 {
+			b.WriteString("\n  queue is empty — select a track and press e\n")
+		}
 	}
 	var visible []entry
 	for n := top; n < len(idx) && n < top+h; n++ {
@@ -194,7 +232,7 @@ func (m *model) View() string {
 		if e.Current {
 			mark = "▶ "
 		}
-		line := rightAlign(fmt.Sprintf("%s%3d. %s", mark, idx[n]+1, e.name()), rowLength(e, m.s), m.w-1)
+		line := rightAlign(fmt.Sprintf("%s%3d. %s%s", mark, idx[n]+1, queueMark(e, m.s.Queue), m.rowName(e)), rowLength(e, m.s), m.w-1)
 		if n == sel {
 			line = "\x1b[7m" + line + "\x1b[0m"
 		}
@@ -227,4 +265,11 @@ func rightAlign(left, right string, width int) string {
 		l = append(l[:room-1], '…')
 	}
 	return string(l) + strings.Repeat(" ", room-len(l)+1) + right
+}
+
+func (m *model) rowName(e entry) string {
+	if m.srch.on {
+		return searchName(e, m.srch.q)
+	}
+	return e.name()
 }

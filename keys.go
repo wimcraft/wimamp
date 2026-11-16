@@ -16,6 +16,7 @@ var defaultKeys = map[string]string{
 	"seek-forward": "l right", "seek-back": "h left", "volume-up": "+ =", "volume-down": "-",
 	"remove": "dd", "quit": "q", "quit-player": "Q",
 	"shuffle": "S", "repeat": "r", "add-files": "a", "add-folder": "A", "pin": "ctrl+a",
+	"queue": "e", "queue-view": "E", "queue-later": "J", "queue-earlier": "K",
 	"search": "/ ctrl+j", "help": "?",
 }
 

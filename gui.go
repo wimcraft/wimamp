@@ -103,7 +103,10 @@ type gui struct {
 	menu         bool // ADD's FILE/DIR menu
 	help         bool
 	search       search
+	queueOn      bool // the playlist panel shows the queue
+	qsel, qtop   int
 	dialog       atomic.Bool
+	refocus      atomic.Bool // the picker just closed: take focus back before the focus check runs
 	wasFocused   bool
 	quit         bool
 	resident     bool // closing hides the window and the process waits for the next `wimamp gui`
@@ -203,6 +206,7 @@ func (g *gui) closeWin() error {
 	ebiten.SetWindowVisible(false)
 	g.hidden.Store(true)
 	g.quit, g.wasFocused, g.help, g.menu, g.drag, g.search, g.pending = false, false, false, false, "", search{}, ""
+	g.queueOn = false
 	return nil
 }
 
@@ -274,6 +278,9 @@ func (g *gui) Update() error {
 	switch {
 	case g.dialog.Load():
 		g.wasFocused = false
+	case g.refocus.Swap(false): // macOS hands focus to the previous app when the picker closes
+		activate()
+		g.wasFocused = false
 	case g.wasFocused && !f && !ebiten.IsWindowFloating(): // pinned on top: stay open
 		return g.closeWin()
 	default:
@@ -285,10 +292,14 @@ func (g *gui) Update() error {
 		case g.help: // any key closes the help
 			g.help = false
 		case g.search.on:
-			if i := g.search.key(k, g.s.List); i >= 0 {
+			if i, queue := g.search.key(k, g.s.List); queue {
+				g.do(playerAction("queue", i, len(g.s.List)))
+			} else if i >= 0 {
 				g.cursor = i
 				g.do(playerAction("play", i, len(g.s.List)))
 			}
+		case k == "esc" && g.queueOn:
+			g.queueOn = false
 		case k == "esc":
 			return g.closeWin()
 		default:
@@ -352,18 +363,37 @@ func pressedKeys() []string {
 }
 
 func (g *gui) act(a string) {
-	if c, ok := moveCursor(a, g.cursor, rows, g.s.List); ok {
-		g.cursor = c
+	idx, sel, _ := g.view()
+	if c, ok := moveCursor(a, *sel, rows, rowEntries(g.s.List, idx)); ok {
+		*sel = c
 		return
 	}
+	cursor := g.cursor
+	if g.queueOn {
+		a = queueAction(a)
+		if *sel >= len(idx) && onRow[a] {
+			return
+		}
+		if *sel < len(idx) {
+			cursor = idx[*sel]
+		}
+		switch a { // the selection follows the moved entry
+		case "queue-later":
+			*sel++
+		case "queue-earlier":
+			*sel--
+		}
+	}
 	switch a {
+	case "queue-view":
+		g.queueOn, g.qsel, g.qtop = !g.queueOn, 0, 0
 	case "quit":
 		g.quit = true
 	case "quit-player":
 		g.do(func() error { _, err := call(simple["quit"]); return err })
 		g.quit = true
 	case "search":
-		g.search = search{on: true}
+		g.search, g.queueOn = search{on: true}, false
 	case "help":
 		g.help = true
 	case "add-files", "add-folder":
@@ -371,7 +401,7 @@ func (g *gui) act(a string) {
 	case "pin":
 		ebiten.SetWindowFloating(!ebiten.IsWindowFloating())
 	default:
-		if f := playerAction(a, g.cursor, len(g.s.List)); f != nil {
+		if f := playerAction(a, cursor, len(g.s.List)); f != nil {
 			g.do(f)
 		}
 		if a == "volume-up" || a == "volume-down" {
@@ -392,7 +422,11 @@ func (g *gui) pick(dir bool) {
 		return
 	}
 	go func() {
-		defer g.dialog.Store(false)
+		defer func() {
+			g.refocus.Store(true) // set before clearing dialog, so no frame sees neither flag
+			g.dialog.Store(false)
+			ebiten.ScheduleFrame() //nolint:staticcheck
+		}()
 		var paths []string
 		var err error
 		if dir {
@@ -475,24 +509,25 @@ func (g *gui) mouse() {
 		case p.In(rRem):
 			g.act("remove")
 		case p.In(rScroll):
-			idx, _, top := g.view()
+			idx, _, topp := g.view()
+			top := *topp
 			thumb := scrollThumb(len(idx), top)
 			g.drag, g.dragY = "scroll", thumb.Dy()/2
 			if p.In(thumb) {
 				g.dragY = y - thumb.Min.Y
 			}
 		case p.In(rList):
-			idx, _, top := g.view()
+			idx, _, topp := g.view()
+			top := *topp
 			if n := top + (y-rList.Min.Y)/rowH; n < len(idx) {
 				double := idx[n] == g.lastRow && time.Since(g.lastClick) < 400*time.Millisecond
 				g.lastRow, g.lastClick = idx[n], time.Now()
-				if g.search.on {
-					g.search.sel = n
-				} else {
-					g.cursor = idx[n]
-				}
+				_, sel, _ := g.view()
+				*sel = n // the playlist's rows are its indices, so this also sets the cursor there
 				if double {
-					g.search.on, g.cursor = false, idx[n]
+					if g.search.on {
+						g.search.on, g.cursor = false, idx[n]
+					}
 					g.act("play")
 				}
 			}
@@ -533,34 +568,32 @@ func (g *gui) mouse() {
 	}
 }
 
-// view is the rows the list shows: the whole playlist, or the matches while searching.
-func (g *gui) view() (idx []int, sel, top int) {
-	if g.search.on {
-		idx = match(g.s.List, g.search.q)
-		return idx, g.search.sel, g.searchTop
+// view is the rows the list shows (playlist indices) with that list's selection and scroll position:
+// the matches while searching, the queue in the queue view, or the whole playlist.
+func (g *gui) view() (idx []int, sel, top *int) {
+	switch {
+	case g.search.on:
+		return match(g.s.List, g.search.q), &g.search.sel, &g.searchTop
+	case g.queueOn:
+		return queueIndices(g.s.List, g.s.Queue), &g.qsel, &g.qtop
 	}
 	idx = make([]int, len(g.s.List))
 	for i := range idx {
 		idx[i] = i
 	}
-	return idx, g.cursor, g.top
+	return idx, &g.cursor, &g.top
 }
 
 func (g *gui) clamp() {
-	g.cursor = max(min(g.cursor, len(g.s.List)-1), 0)
-	g.top = max(0, min(g.top, len(g.s.List)-rows))
-	if g.search.on {
-		g.searchTop = max(0, min(g.searchTop, len(match(g.s.List, g.search.q))-rows))
-	}
+	idx, sel, top := g.view()
+	*sel = max(min(*sel, len(idx)-1), 0)
+	*top = max(0, min(*top, len(idx)-rows))
 }
 
 func (g *gui) keepVisible() {
 	g.clamp()
-	if g.search.on {
-		g.searchTop = max(0, min(g.searchTop, g.search.sel), g.search.sel-rows+1)
-	} else {
-		g.top = max(0, min(g.top, g.cursor), g.cursor-rows+1)
-	}
+	_, sel, top := g.view()
+	*top = max(0, min(*top, *sel), *sel-rows+1)
 }
 
 const scrollThumbHeight = 18
@@ -575,14 +608,9 @@ func scrollThumb(count, top int) image.Rectangle {
 }
 
 func (g *gui) scrollTo(y int) {
-	idx, _, _ := g.view()
+	idx, _, top := g.view()
 	travel := rScroll.Dy() - scrollThumbHeight
-	top := (max(0, min(y-rScroll.Min.Y, travel))*max(0, len(idx)-rows) + travel/2) / travel
-	if g.search.on {
-		g.searchTop = top
-	} else {
-		g.top = top
-	}
+	*top = (max(0, min(y-rScroll.Min.Y, travel))*max(0, len(idx)-rows) + travel/2) / travel
 }
 
 // --- drawing ---
@@ -961,12 +989,17 @@ func (g *gui) Draw(screen *ebiten.Image) {
 	}
 
 	// playlist
-	titleBar(screen, rPLTitle, "WIMAMP PLAYLIST")
-	fill(screen, rList, cBlack)
-	if len(s.List) == 0 {
-		label(screen, "empty - a: add files, ?: keys", rList.Min.X+4, rList.Min.Y, cDim, 0.75)
+	idx, selp, topp := g.view()
+	title, empty := "WIMAMP PLAYLIST", "empty - a: add files, ?: keys"
+	if g.queueOn {
+		title, empty = "WIMAMP QUEUE", "queue empty - e: queue a track, E: back"
 	}
-	idx, sel, top := g.view()
+	titleBar(screen, rPLTitle, title)
+	fill(screen, rList, cBlack)
+	if len(idx) == 0 && !g.search.on {
+		label(screen, empty, rList.Min.X+4, rList.Min.Y, cDim, 0.75)
+	}
+	sel, top := *selp, *topp
 	fill(screen, rScroll, cDark)
 	thumb := scrollThumb(len(idx), top)
 	raised(screen, thumb, false)
@@ -985,7 +1018,7 @@ func (g *gui) Draw(screen *ebiten.Image) {
 		}
 		visible = append(visible, e)
 		rw := int(text.Advance(right, face))
-		label(screen, fit(fmt.Sprintf("%d. %s", i+1, e.name()), rList.Dx()-8-rw), rList.Min.X+3, y, c, 1)
+		label(screen, fit(fmt.Sprintf("%d. %s%s", i+1, queueMark(e, s.Queue), g.rowName(e)), rList.Dx()-8-rw), rList.Min.X+3, y, c, 1)
 		label(screen, right, rList.Max.X-3-rw, y, c, 1)
 	}
 
@@ -995,6 +1028,9 @@ func (g *gui) Draw(screen *ebiten.Image) {
 	button(screen, rAdd, "ADD", g.down == rAdd)
 	button(screen, rRem, "REM", g.down == rRem)
 	info, c := strings.TrimSpace(fmt.Sprintf("%d/%d  %s", min(g.cursor+1, len(s.List)), len(s.List), totalLength(s.List))), cGreen
+	if g.queueOn {
+		info = fmt.Sprintf("queue %d/%d", min(sel+1, len(idx)), len(idx))
+	}
 	if g.flash != "" {
 		info, c = g.flash, cErr
 	}
@@ -1019,4 +1055,11 @@ func (g *gui) Draw(screen *ebiten.Image) {
 		}
 		centered(screen, "press any key", image.Rect(0, gh-20, gw, gh-4), cDim)
 	}
+}
+
+func (g *gui) rowName(e entry) string {
+	if g.search.on {
+		return searchName(e, g.search.q)
+	}
+	return e.name()
 }

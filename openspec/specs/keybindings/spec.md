@@ -25,7 +25,11 @@ The system SHALL provide these default bindings in both the TUI and the popup wi
 | shuffle / repeat toggle | `S` / `r` |
 | add files / add folder (window only, opens the native picker) | `a` / `A` |
 | always on top on/off (window only) | `ctrl+a` |
+| queue / unqueue selected | `e` |
+| queue view on/off | `E` |
+| move in the queue view later / earlier | `J` / `K` |
 | search / jump to track | `/` `ctrl+j` |
+| queue the highlighted match, keep searching (in search) | `ctrl+e` |
 | key help | `?` |
 | close the interface | `q` |
 | quit the player | `Q` |
