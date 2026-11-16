@@ -11,7 +11,7 @@
 - [x] 2.2 Search: `ctrl+e` queues the highlighted match, keeps the query and moves to the next match; results matched by folder show that folder
 - [x] 2.3 `[n]` marks on queued rows in the window and the TUI
 - [x] 2.4 Queue view in the window (title, rows, selection, scrollbar, mouse, info box, Esc back) and the TUI (header line, rows, Esc back); `e`/`dd`/REM unqueue there
-- [ ] 2.5 Check by hand on macOS and Windows: queue from search, marks clear as tracks play, works with the window closed and with shuffle on, queue view reorder and unqueue
+- [x] 2.5 Check by hand on macOS and Windows: queue from search, marks clear as tracks play, works with the window closed and with shuffle on, queue view reorder and unqueue
 
 ## 3. Docs
 
