@@ -40,15 +40,22 @@ type search struct {
 	sel int // index into match(list, q)
 }
 
-// key feeds one key (keys.conf naming) to the open prompt and returns the playlist index to play, or -1.
-func (s *search) key(k string, list []entry) int {
+// key feeds one key (keys.conf naming) to the open prompt and returns the playlist index to play
+// (or to queue, with ctrl+e, which keeps the prompt open for the next one), or -1.
+func (s *search) key(k string, list []entry) (i int, queue bool) {
 	switch k {
 	case "esc", "ctrl+c":
 		s.on = false
 	case "enter":
 		s.on = false
 		if m := match(list, s.q); s.sel < len(m) {
-			return m[s.sel]
+			return m[s.sel], false
+		}
+	case "ctrl+e":
+		if m := match(list, s.q); s.sel < len(m) {
+			i := m[s.sel]
+			s.q, s.sel = "", 0
+			return i, true
 		}
 	case "backspace":
 		if rs := []rune(s.q); len(rs) > 0 {
@@ -66,5 +73,5 @@ func (s *search) key(k string, list []entry) int {
 		}
 	}
 	s.sel = max(min(s.sel, len(match(list, s.q))-1), 0)
-	return -1
+	return -1, false
 }

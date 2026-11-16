@@ -70,13 +70,20 @@ func TestSearch(t *testing.T) {
 	if s.sel != 1 {
 		t.Fatalf("sel = %d", s.sel)
 	}
-	if idx := s.key("enter", list); idx != 3 || s.on {
-		t.Fatalf("enter: idx %d on %v", idx, s.on)
+	if idx, q := s.key("enter", list); idx != 3 || q || s.on {
+		t.Fatalf("enter: idx %d queue %v on %v", idx, q, s.on)
+	}
+	s = search{on: true}
+	for _, k := range []string{"e", "c", "h", "o", "down"} {
+		s.key(k, list)
+	}
+	if idx, q := s.key("ctrl+e", list); idx != 3 || !q || !s.on || s.q != "" {
+		t.Fatalf("ctrl+e: idx %d queue %v on %v query %q", idx, q, s.on, s.q)
 	}
 	s = search{on: true}
 	s.key("x", list)
 	s.key("backspace", list)
-	if s.q != "" || s.key("esc", list) != -1 || s.on {
+	if i, _ := s.key("esc", list); s.q != "" || i != -1 || s.on {
 		t.Fatal("backspace/esc")
 	}
 }

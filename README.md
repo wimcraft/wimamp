@@ -74,7 +74,10 @@ The same keys work in the TUI and the window. Press `?` in either one, or run `w
 | shuffle / repeat | `S` / `r` | add files / folder (window) | `a` / `A` |
 | search, jump to track | `/` `ctrl+j` | key help | `?` |
 | close | `q` (window: also Esc) | quit the player | `Q` |
-| always on top (window) | `ctrl+a` | | |
+| always on top (window) | `ctrl+a` | queue / unqueue | `e` |
+| queue view | `E` | move in queue view | `J` / `K` |
+
+The queue works as in Winamp's Jump To File Extra: `e` queues the selected track, or `ctrl+e` the highlighted search match while the search stays open for the next one. Queued tracks play next in the order queued, marked `[1]`, `[2]`… in the list, and then the playlist continues after the last of them; `next` also takes the queue first. The playlist order never changes. `E` shows the queue in place of the playlist, where `enter` plays, `e` or `dd` unqueue, `J` / `K` reorder, and Esc goes back. The queue lives in the player, so it keeps working with the window and TUI closed, until the player quits.
 
 Search filters the playlist as you type, by name or folder. Names containing the query come first, then fuzzy matches. Use `up`/`down` or `ctrl+n`/`ctrl+p` to pick a match, `enter` to play it, and Esc to cancel. In the window, `ctrl+m`, `ctrl+i`, `ctrl+h` and `ctrl+[` work as Enter, Tab, Backspace and Esc, as they do in a terminal.
 

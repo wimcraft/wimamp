@@ -92,6 +92,9 @@ func runCmd(cmd string, args []string) error {
 	if err := ensureDaemon(); err != nil {
 		return err
 	}
+	if cmd == "next" { // the queue goes first
+		return next()
+	}
 	if c, ok := simple[cmd]; ok {
 		_, err := call(c)
 		return err

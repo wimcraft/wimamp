@@ -2,14 +2,35 @@ package main
 
 import (
 	"bufio"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 )
+
+// queueScript runs inside mpv, because mpv, not wimamp, moves from one track to the next.
+//
+//go:embed queue.lua
+var queueScript []byte
+
+// scriptPath writes the queue script where mpv can load it, fresh each time so it matches this binary.
+func scriptPath() (string, error) {
+	dir, err := os.UserCacheDir()
+	if err != nil {
+		return "", err
+	}
+	p := filepath.Join(dir, "wimamp", "queue.lua")
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		return "", err
+	}
+	return p, os.WriteFile(p, queueScript, 0o644)
+}
 
 func ping() bool {
 	c, err := dial()
@@ -37,8 +58,12 @@ func ensureDaemon() error {
 		return nil
 	}
 	removeStale()
+	script, err := scriptPath()
+	if err != nil {
+		return fmt.Errorf("queue script: %w", err)
+	}
 	cmd := exec.Command(mpvPath(), "--idle=yes", "--no-video", "--no-terminal", "--force-window=no",
-		"--input-ipc-server="+socketPath())
+		"--input-ipc-server="+socketPath(), "--script="+script)
 	detach(cmd)
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("start mpv (is it installed and in PATH?): %w", err)
@@ -108,6 +133,7 @@ func call(cmds ...[]any) ([]json.RawMessage, error) {
 type entry struct {
 	Filename, Title string
 	Current         bool
+	ID              int // mpv's id for this playlist entry, stable when the playlist is reordered
 }
 
 func (e entry) name() string {
@@ -125,6 +151,7 @@ type state struct {
 	Shuffle       bool
 	Repeat        bool
 	List          []entry
+	Queue         []int // entry ids that play before the playlist continues
 }
 
 func fetch() (state, error) {
@@ -138,6 +165,7 @@ func fetch() (state, error) {
 		[]any{"get_property", "volume"},
 		[]any{"get_property", "loop-playlist"},
 		[]any{"get_property", "user-data/wimamp/shuffle"},
+		[]any{"get_property", "user-data/wimamp/queue"},
 	)
 	var s state
 	if r == nil {
@@ -153,6 +181,7 @@ func fetch() (state, error) {
 	json.Unmarshal(r[6], &s.Vol)
 	s.Repeat = string(r[7]) != "false" && r[7] != nil // "inf", a count, or false
 	json.Unmarshal(r[8], &s.Shuffle)
+	json.Unmarshal(r[9], &s.Queue)
 	if i := currentIndex(s.List, -1); i >= 0 && s.Dur > 0 && !s.Idle {
 		learnLength(s.List[i].Filename, s.Dur)
 	}
@@ -269,4 +298,103 @@ var simple = map[string][]any{
 	"prev":  {"playlist-prev"},
 	"clear": {"stop"}, // plain stop empties the playlist
 	"quit":  {"quit"},
+}
+
+// setQueue stores the queue, loading the script first into a player started by an older wimamp.
+func setQueue(q []int) error {
+	if q == nil {
+		q = []int{}
+	}
+	r, err := call([]any{"get_property", "user-data/wimamp/queue-script"})
+	if r == nil {
+		return err
+	}
+	if r[0] == nil {
+		p, err := scriptPath()
+		if err != nil {
+			return err
+		}
+		if _, err := call([]any{"load-script", p}); err != nil {
+			return err
+		}
+	}
+	_, err = call([]any{"set_property", "user-data/wimamp/queue", q})
+	return err
+}
+
+// readQueue returns the playlist and the queue in one round trip.
+func readQueue() ([]entry, []int, error) {
+	r, err := call([]any{"get_property", "playlist"}, []any{"get_property", "user-data/wimamp/queue"})
+	if r == nil {
+		return nil, nil, err
+	}
+	var list []entry
+	var q []int
+	json.Unmarshal(r[0], &list)
+	json.Unmarshal(r[1], &q)
+	return list, q, nil
+}
+
+// queueEdit applies f to the queue and the id of playlist entry i.
+func queueEdit(i int, f func(q []int, id int) []int) error {
+	list, q, err := readQueue()
+	if err != nil {
+		return err
+	}
+	if i < 0 || i >= len(list) {
+		return nil
+	}
+	return setQueue(f(q, list[i].ID))
+}
+
+// toggleID queues id at the end, or unqueues it when it is already queued.
+func toggleID(q []int, id int) []int {
+	if i := slices.Index(q, id); i >= 0 {
+		return slices.Delete(slices.Clone(q), i, i+1)
+	}
+	return append(slices.Clone(q), id)
+}
+
+func unqueueID(q []int, id int) []int {
+	return slices.DeleteFunc(slices.Clone(q), func(x int) bool { return x == id })
+}
+
+// moveID moves id by delta places in the queue, stopping at either end.
+func moveID(q []int, id, delta int) []int {
+	i := slices.Index(q, id)
+	if i < 0 {
+		return q
+	}
+	q = slices.Clone(q)
+	j := max(0, min(len(q)-1, i+delta))
+	q = slices.Delete(q, i, i+1)
+	return slices.Insert(q, j, id)
+}
+
+// queueIndices maps the queue to playlist indices in play order, skipping ids no longer in the playlist.
+func queueIndices(list []entry, q []int) []int {
+	pos := make(map[int]int, len(list))
+	for i, e := range list {
+		pos[e.ID] = i
+	}
+	var out []int
+	for _, id := range q {
+		if i, ok := pos[id]; ok {
+			out = append(out, i)
+		}
+	}
+	return out
+}
+
+// next plays the first queued entry, or the next one in the playlist when nothing is queued.
+func next() error {
+	list, q, err := readQueue()
+	if err != nil {
+		return err
+	}
+	if idx := queueIndices(list, q); len(idx) > 0 {
+		return playIndex(idx[0]) // the script drops it from the queue when it starts
+	}
+	_, err = call(simple["next"])
+	return err
 }
