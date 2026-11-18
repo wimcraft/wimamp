@@ -1,6 +1,7 @@
 package main
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -95,4 +96,16 @@ func TestTUIViewNarrow(t *testing.T) {
 	checkSize(t, screen(m), 40, 12)
 	m = testModel(10, 12) // narrower than the minimum: drawn at the minimum
 	checkSize(t, screen(m), 24, 12)
+}
+
+func TestPickCommand(t *testing.T) {
+	t.Setenv("FZF_DEFAULT_COMMAND", "find .")
+	c, _ := fzfCmd(true)
+	if !slices.Contains(c.Args, "--walker=dir,follow") || c.Env[len(c.Env)-1] != "FZF_DEFAULT_COMMAND=" {
+		t.Errorf("args %v, env ends %q", c.Args, c.Env[len(c.Env)-1])
+	}
+	t.Setenv("PATH", "")
+	if msg, ok := pick(false)().(flashMsg); !ok || !strings.Contains(string(msg), "install fzf") {
+		t.Errorf("without fzf: %v", msg)
+	}
 }

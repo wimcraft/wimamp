@@ -79,6 +79,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(refresh, tick())
 	case flashMsg:
 		m.flash = string(msg)
+	case pickedMsg:
+		return m, run(func() error { return load(msg, "append") })
 	case stateMsg:
 		if !reflect.DeepEqual(msg.s.List, m.s.List) {
 			go queueLengths(paths(msg.s.List), false)
@@ -164,6 +166,8 @@ func (m *model) do(a string) tea.Cmd {
 		m.srch, m.queueOn = search{on: true}, false
 	case "help":
 		m.help = true
+	case "add-files", "add-folder":
+		return pick(a == "add-folder")
 	case "quit":
 		return tea.Quit
 	case "quit-player":
@@ -172,7 +176,7 @@ func (m *model) do(a string) tea.Cmd {
 	if f := playerAction(a, cursor, len(m.s.List)); f != nil {
 		return run(f)
 	}
-	return nil // e.g. add-files: window only
+	return nil // e.g. pin: window only
 }
 
 func (m *model) clamp() {

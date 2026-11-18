@@ -61,7 +61,7 @@ Closing the TUI or the window leaves the music playing. The popup window closes 
 
 ## Keys
 
-The TUI draws the same player in the terminal, in the window's colors: a player box with the time, title, seek bar, volume meter and shuffle/repeat lights above the playlist box.
+The TUI draws the same player in the terminal, in the window's colors: a player box with the time, title, seek bar, volume meter and shuffle/repeat lights above the playlist box. There, `a` and `A` open [fzf](https://github.com/junegunn/fzf) (0.48 or newer) over your home folder to pick files or folders, several with Tab; without fzf, use `wimamp add`.
 
 The same keys work in the TUI and the window. Press `?` in either one, or run `wimamp keys`, to see every action with its current keys.
 
@@ -73,7 +73,7 @@ The same keys work in the TUI and the window. Press `?` in either one, or run `w
 | jump to playing | `o` | next / prev | `n` / `p` |
 | seek ±5 s | `l` / `h` | stop | `s` |
 | volume | `+` / `-` | remove selected | `dd` |
-| shuffle / repeat | `S` / `r` | add files / folder (window) | `a` / `A` |
+| shuffle / repeat | `S` / `r` | add files / folder | `a` / `A` |
 | search, jump to track | `/` `ctrl+j` | key help | `?` |
 | close | `q` (window: also Esc) | quit the player | `Q` |
 | always on top (window) | `ctrl+a` | queue / unqueue | `e` |
