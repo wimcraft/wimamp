@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"reflect"
 	"strings"
 	"time"
@@ -75,7 +74,7 @@ func (m *model) Init() tea.Cmd { return tea.Batch(refresh, tick()) }
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.h, m.w = max(msg.Height-3, 1), msg.Width // status line, footer, flash
+		m.h, m.w = max(msg.Height-playerLines-2, 1), msg.Width // the player box and the playlist borders
 	case tickMsg:
 		return m, tea.Batch(refresh, tick())
 	case flashMsg:
@@ -137,7 +136,7 @@ func (m *model) do(a string) tea.Cmd {
 	cursor := m.cursor
 	if m.queueOn {
 		idx := queueIndices(m.s.List, m.s.Queue)
-		if c, ok := moveCursor(a, m.qsel, m.h-1, rowEntries(m.s.List, idx)); ok {
+		if c, ok := moveCursor(a, m.qsel, m.h, rowEntries(m.s.List, idx)); ok {
 			m.qsel = c
 			return nil
 		}
@@ -185,86 +184,6 @@ func (m *model) clamp() {
 	if m.cursor >= m.top+m.h {
 		m.top = m.cursor - m.h + 1
 	}
-}
-
-func (m *model) View() string {
-	var b strings.Builder
-	if m.err != nil {
-		b.WriteString("⚠ " + m.err.Error())
-	} else {
-		b.WriteString(m.s.line())
-	}
-	b.WriteString("\n")
-	if m.help {
-		for _, l := range helpLines(m.keys) {
-			fmt.Fprintf(&b, "  %-22s %s\n", l[0], l[1])
-		}
-		b.WriteString("\n  press any key")
-		return b.String()
-	}
-	if len(m.s.List) == 0 {
-		b.WriteString("\n  playlist is empty — add music with: wimamp add ~/Music   (? for keys)\n")
-	}
-	// rows to show: the whole playlist, or the matches while searching
-	idx, sel, top, h := make([]int, len(m.s.List)), m.cursor, m.top, m.h
-	for i := range idx {
-		idx[i] = i
-	}
-	switch {
-	case m.srch.on:
-		h--
-		idx, sel = match(m.s.List, m.srch.q), m.srch.sel
-		top = max(0, sel-h+1)
-	case m.queueOn:
-		h--
-		idx, sel = queueIndices(m.s.List, m.s.Queue), m.qsel
-		top = max(0, sel-h+1)
-		fmt.Fprintf(&b, "queue (%d)   e/dd: unqueue  J/K: move  E/esc: back\n", len(idx))
-		if len(idx) == 0 {
-			b.WriteString("\n  queue is empty — select a track and press e\n")
-		}
-	}
-	var visible []entry
-	for n := top; n < len(idx) && n < top+h; n++ {
-		e := m.s.List[idx[n]]
-		visible = append(visible, e)
-		mark := "  "
-		if e.Current {
-			mark = "▶ "
-		}
-		line := rightAlign(fmt.Sprintf("%s%3d. %s%s", mark, idx[n]+1, queueMark(e, m.s.Queue), m.rowName(e)), rowLength(e, m.s), m.w-1)
-		if n == sel {
-			line = "\x1b[7m" + line + "\x1b[0m"
-		}
-		b.WriteString(line + "\n")
-	}
-	queueMissing(visible, true)
-	if len(m.s.List) > 0 {
-		fmt.Fprintf(&b, "  %d tracks  %s", len(m.s.List), totalLength(m.s.List))
-	}
-	if m.srch.on {
-		fmt.Fprintf(&b, "\n/%s█  %d matches", m.srch.q, len(idx))
-	}
-	if m.flash != "" {
-		b.WriteString("\n" + m.flash)
-	}
-	return b.String()
-}
-
-// rightAlign puts right at the end of a width-column line, cutting left to fit.
-// shortcut: counts runes, so wide (CJK) names push the length a little; use go-runewidth if that bothers anyone.
-func rightAlign(left, right string, width int) string {
-	if right == "" || width <= 0 {
-		return left
-	}
-	l, room := []rune(left), width-len(right)-1
-	if room < 1 {
-		return left
-	}
-	if len(l) > room {
-		l = append(l[:room-1], '…')
-	}
-	return string(l) + strings.Repeat(" ", room-len(l)+1) + right
 }
 
 func (m *model) rowName(e entry) string {

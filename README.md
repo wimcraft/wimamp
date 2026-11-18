@@ -61,6 +61,8 @@ Closing the TUI or the window leaves the music playing. The popup window closes 
 
 ## Keys
 
+The TUI draws the same player in the terminal, in the window's colors: a player box with the time, title, seek bar, volume meter and shuffle/repeat lights above the playlist box.
+
 The same keys work in the TUI and the window. Press `?` in either one, or run `wimamp keys`, to see every action with its current keys.
 
 | Action | Keys | Action | Keys |
