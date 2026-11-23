@@ -388,13 +388,6 @@ func queueIndices(list []entry, q []int) []int {
 
 // next plays the first queued entry, or the next one in the playlist when nothing is queued.
 func next() error {
-	list, q, err := readQueue()
-	if err != nil {
-		return err
-	}
-	if idx := queueIndices(list, q); len(idx) > 0 {
-		return playIndex(idx[0]) // the script drops it from the queue when it starts
-	}
-	_, err = call(simple["next"])
+	_, err := call([]any{"script-message", "wimamp-next"}) // the queue script picks the track
 	return err
 }

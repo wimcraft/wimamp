@@ -80,15 +80,15 @@ The popup window and the TUI SHALL show the total length of the playlist: the su
 - **THEN** the total shows `1:02:05+`
 
 ### Requirement: Play queue
-The user SHALL be able to queue playlist entries to play next. Queueing an entry SHALL add it to the end of the queue; queueing an entry that is already queued SHALL remove it from the queue. When a track ends on its own, or on `next`, the first queued entry still in the playlist SHALL play and leave the queue; with the queue empty, playback SHALL continue as before. After queued entries have played, the playlist SHALL continue after the last one played, as in Winamp. A queued entry that starts playing for any other reason SHALL leave the queue, and so SHALL an entry removed from the playlist. Queueing SHALL NOT change the playlist order. The queue SHALL work with no wimamp interface open, SHALL last as long as the player runs, and SHALL NOT be saved with the playlist. The TUI and the popup window SHALL show each queued entry's place in the queue before its name, as `[1]`, `[2]` and so on.
+The user SHALL be able to queue playlist entries to play next. Queueing an entry SHALL add it to the end of the queue; queueing an entry that is already queued SHALL remove it from the queue. When a track ends on its own, or on `next`, the first queued entry still in the playlist SHALL play and leave the queue; with the queue empty, playback SHALL continue as before. After queued entries have played, the playlist SHALL continue after the entry that was playing when the queue took over; an entry picked by hand SHALL become the new place the playlist continues from. A queued entry that starts playing for any other reason SHALL leave the queue, and so SHALL an entry removed from the playlist. Queueing SHALL NOT change the playlist order. The queue SHALL work with no wimamp interface open, SHALL last as long as the player runs, and SHALL NOT be saved with the playlist. The TUI and the popup window SHALL show each queued entry's place in the queue before its name, as `[1]`, `[2]` and so on.
 
 #### Scenario: Queued tracks play first
-- **WHEN** entry 1 of a four-entry playlist is playing and the user queues entry 4 and then entry 2
-- **THEN** the entries play in the order 1, 4, 2, 3
+- **WHEN** entry 1 of a four-entry playlist is playing and the user queues entry 4 and then entry 3
+- **THEN** the entries play in the order 1, 4, 3, 2, 3, 4
 
 #### Scenario: Queue at the end of the playlist
 - **WHEN** the last entry is playing, repeat is off, and entry 1 is queued
-- **THEN** entry 1 plays after the last entry ends
+- **THEN** entry 1 plays after the last entry ends, and then playback stops
 
 #### Scenario: Next takes the queue
 - **WHEN** entry 3 is queued and the user presses the next key or runs `wimamp next`

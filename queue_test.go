@@ -131,12 +131,12 @@ func playOrder(t *testing.T) []int {
 
 func TestQueuePlaysFirst(t *testing.T) {
 	list := startTestPlayer(t, 4, 0.4)
-	if err := setQueue([]int{list[3].ID, list[1].ID}); err != nil {
+	if err := setQueue([]int{list[3].ID, list[2].ID}); err != nil {
 		t.Fatal(err)
 	}
-	// after the queue, the playlist continues from the last queued entry, as in Winamp
-	if got := playOrder(t); !slices.Equal(got, []int{0, 3, 1, 2, 3}) {
-		t.Errorf("played %v, want [0 3 1 2 3]", got)
+	// after the queue, the playlist goes on after the track that played before it
+	if got := playOrder(t); !slices.Equal(got, []int{0, 3, 2, 1, 2, 3}) {
+		t.Errorf("played %v, want [0 3 2 1 2 3]", got)
 	}
 }
 
@@ -150,9 +150,9 @@ func TestQueueAfterLastTrack(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	setQueue([]int{list[0].ID})
-	// the queued entry plays after the last one ends, then the playlist goes on after it
-	if got := playOrder(t); !slices.Equal(got, []int{1, 0, 1}) {
-		t.Errorf("played %v, want [1 0 1]", got)
+	// the queued entry plays after the last one ends, then the playlist stops: it was at its end
+	if got := playOrder(t); !slices.Equal(got, []int{1, 0}) {
+		t.Errorf("played %v, want [1 0]", got)
 	}
 }
 
@@ -167,6 +167,13 @@ func TestQueueNextAndPick(t *testing.T) {
 	if i := currentIndex(s.List, -1); i != 2 || !slices.Equal(s.Queue, []int{list[3].ID}) {
 		t.Errorf("after next: playing %d, queue %v", i, s.Queue)
 	}
+	next()
+	next() // queue drained: back after the track playing before it
+	time.Sleep(200 * time.Millisecond)
+	if s, _ := fetch(); currentIndex(s.List, -1) != 1 {
+		t.Errorf("after the queue: playing %d, want 1", currentIndex(s.List, -1))
+	}
+	setQueue([]int{list[3].ID})
 	playIndex(3) // picked by hand: leaves the queue
 	time.Sleep(200 * time.Millisecond)
 	if s, _ := fetch(); len(s.Queue) != 0 {
