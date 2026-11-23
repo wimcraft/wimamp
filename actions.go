@@ -42,6 +42,7 @@ func currentIndex(list []entry, def int) int {
 var needsTrack = map[string]bool{
 	"play": true, "resume": true, "toggle": true, "remove": true, "next": true, "prev": true,
 	"seek-forward": true, "seek-back": true, "queue": true, "unqueue": true, "queue-later": true, "queue-earlier": true,
+	"move-later": true, "move-earlier": true,
 }
 
 // playerAction returns the player call behind a key action, or nil when the action only affects
@@ -75,6 +76,15 @@ func playerAction(a string, cursor, n int) func() error {
 			d = -1
 		}
 		return func() error { return queueEdit(cursor, func(q []int, id int) []int { return moveID(q, id, d) }) }
+	case "move-later", "move-earlier":
+		to := cursor + 2 // playlist-move puts the entry before index `to`
+		if a == "move-earlier" {
+			to = cursor - 1
+		}
+		if to < 0 || to > n {
+			return nil
+		}
+		return func() error { _, err := call([]any{"playlist-move", cursor, to}); return err }
 	}
 	c, ok := simple[a]
 	if !ok || a == "quit" {
@@ -101,12 +111,29 @@ func queueMark(e entry, q []int) string {
 }
 
 // queueAction turns a key action in the queue view into the one to run: removing unqueues
-// instead of deleting from the playlist, and queueing an entry that is already queued unqueues it.
+// instead of deleting from the playlist, queueing an entry that is already queued unqueues it,
+// and moving moves within the queue.
 func queueAction(a string) string {
-	if a == "remove" || a == "queue" {
+	switch a {
+	case "remove", "queue":
 		return "unqueue"
+	case "move-later":
+		return "queue-later"
+	case "move-earlier":
+		return "queue-earlier"
 	}
 	return a
+}
+
+// moved is where the selection goes in a list of n rows when action a moves the entry at sel.
+func moved(a string, sel, n int) int {
+	switch a {
+	case "move-later", "queue-later":
+		return max(min(sel+1, n-1), 0)
+	case "move-earlier", "queue-earlier":
+		return max(sel-1, 0)
+	}
+	return sel
 }
 
 // onRow lists the actions that work on the selected row, so they do nothing without one.

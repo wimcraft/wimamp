@@ -377,13 +377,8 @@ func (g *gui) act(a string) {
 		if *sel < len(idx) {
 			cursor = idx[*sel]
 		}
-		switch a { // the selection follows the moved entry
-		case "queue-later":
-			*sel++
-		case "queue-earlier":
-			*sel--
-		}
 	}
+	*sel = moved(a, *sel, len(idx)) // the selection follows the moved entry
 	switch a {
 	case "queue-view":
 		g.queueOn, g.qsel, g.qtop = !g.queueOn, 0, 0

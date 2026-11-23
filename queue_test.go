@@ -180,3 +180,54 @@ func TestQueueNextAndPick(t *testing.T) {
 		t.Errorf("queue after picking the queued entry: %v", s.Queue)
 	}
 }
+
+func TestMoveHelpers(t *testing.T) {
+	if playerAction("move-earlier", 0, 3) != nil || playerAction("move-later", 2, 3) != nil {
+		t.Error("moving past an end should do nothing")
+	}
+	if playerAction("move-later", 1, 3) == nil || playerAction("move-earlier", 1, 3) == nil {
+		t.Error("move inside the playlist")
+	}
+	if moved("move-later", 2, 3) != 2 || moved("move-later", 0, 3) != 1 || moved("move-earlier", 0, 3) != 0 || moved("next", 1, 3) != 1 {
+		t.Error("selection after a move")
+	}
+	if queueAction("move-later") != "queue-later" || queueAction("move-earlier") != "queue-earlier" {
+		t.Error("J/K in the queue view")
+	}
+	keys, err := parseKeys("queue-later = L")
+	if err != nil || keys["L"] != "move-later" || keys["J"] == "move-later" {
+		t.Errorf("old action name in keys.conf: %v %v", keys["L"], err)
+	}
+}
+
+func TestMovePlaylist(t *testing.T) {
+	list := startTestPlayer(t, 4, 5)
+	setQueue([]int{list[3].ID})
+	g := &gui{}
+	g.s.List, g.cursor = list, 1
+	// the actions run through the player call queue; run them here instead
+	for _, a := range []string{"move-later", "move-later", "move-earlier"} {
+		f := playerAction(a, g.cursor, len(list))
+		g.cursor = moved(a, g.cursor, len(list))
+		if f != nil {
+			if err := f(); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	s, err := fetch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []int
+	for _, e := range s.List {
+		ids = append(ids, e.ID)
+	}
+	want := []int{list[0].ID, list[2].ID, list[1].ID, list[3].ID} // 1 went to the end, then back one
+	if !slices.Equal(ids, want) || g.cursor != 2 {
+		t.Errorf("order %v cursor %d, want %v 2", ids, g.cursor, want)
+	}
+	if !slices.Equal(s.Queue, []int{list[3].ID}) || currentIndex(s.List, -1) != 0 {
+		t.Errorf("queue %v playing %d after moves", s.Queue, currentIndex(s.List, -1))
+	}
+}

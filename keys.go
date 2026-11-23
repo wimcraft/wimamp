@@ -16,9 +16,12 @@ var defaultKeys = map[string]string{
 	"seek-forward": "l right", "seek-back": "h left", "volume-up": "+ =", "volume-down": "-",
 	"remove": "dd", "quit": "q", "quit-player": "Q",
 	"shuffle": "S", "repeat": "r", "add-files": "a", "add-folder": "A", "pin": "ctrl+a",
-	"queue": "e", "queue-view": "E", "queue-later": "J", "queue-earlier": "K",
+	"queue": "e", "queue-view": "E", "move-later": "J", "move-earlier": "K",
 	"search": "/ ctrl+j", "help": "?",
 }
+
+// renamedActions maps old action names in a user's keys.conf to the current ones.
+var renamedActions = map[string]string{"queue-later": "move-later", "queue-earlier": "move-earlier"}
 
 // parseKeys reads "action = key key" lines and returns key -> action, user bindings winning over defaults.
 func parseKeys(conf string) (map[string]string, error) {
@@ -30,6 +33,9 @@ func parseKeys(conf string) (map[string]string, error) {
 		}
 		action, keys, ok := strings.Cut(line, "=")
 		action = strings.TrimSpace(action)
+		if a, ok := renamedActions[action]; ok {
+			action = a
+		}
 		if _, known := defaultKeys[action]; !ok || !known {
 			return nil, fmt.Errorf("keys.conf line %d: want `action = keys` with a known action, got %q", i+1, line)
 		}

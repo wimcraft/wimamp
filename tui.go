@@ -149,15 +149,12 @@ func (m *model) do(a string) tea.Cmd {
 		if m.qsel < len(idx) {
 			cursor = idx[m.qsel]
 		}
-		switch a { // the selection follows the moved entry
-		case "queue-later":
-			m.qsel++
-		case "queue-earlier":
-			m.qsel--
-		}
+		m.qsel = moved(a, m.qsel, len(idx)) // the selection follows the moved entry
 	} else if c, ok := moveCursor(a, m.cursor, m.h, m.s.List); ok {
 		m.cursor = c
 		return nil
+	} else {
+		m.cursor = moved(a, m.cursor, len(m.s.List))
 	}
 	switch a {
 	case "queue-view":
