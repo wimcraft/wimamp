@@ -25,8 +25,6 @@ The system SHALL provide these default bindings in both the TUI and the popup wi
 | move the selected entry later / earlier (in the queue view: within the queue) | `J` / `K` |
 | search / jump to track | `/` `ctrl+j` |
 | queue the highlighted match, keep searching (in search) | `ctrl+e` |
-| track info for the selected entry on/off | `i` |
-| show the track in its folder (in track info) | `f` |
 | key help | `?` |
 | close the interface | `q` |
 | quit the player | `Q` |
@@ -39,6 +37,14 @@ The system SHALL provide these default bindings in both the TUI and the popup wi
 - **WHEN** the user presses `b` in the TUI or the popup window
 - **THEN** playback moves to the next track
 
-#### Scenario: Track info
-- **WHEN** the user selects an entry and presses `i`
-- **THEN** the playlist panel shows that track's info
+#### Scenario: Reorder in the playlist
+- **WHEN** the playlist is shown and the user presses `J`
+- **THEN** the selected entry moves one place down
+
+#### Scenario: Reorder in the queue view
+- **WHEN** the queue view is shown and the user presses `J`
+- **THEN** the selected entry moves one place later in the queue and the playlist order does not change
+
+#### Scenario: Add opens the browser in the TUI
+- **WHEN** the user presses `a` or `A` in the TUI
+- **THEN** the playlist panel shows the file browser

@@ -23,13 +23,15 @@ The system SHALL provide these default bindings in both the TUI and the popup wi
 | volume up / down | `+` `=` / `-` |
 | remove selected | `dd` |
 | shuffle / repeat toggle | `S` / `r` |
-| add files / add folder (window only, opens the native picker) | `a` / `A` |
+| add music (native picker in the window: files / folder; file browser in the TUI) | `a` / `A` |
 | always on top on/off (window only) | `ctrl+a` |
 | queue / unqueue selected | `e` |
 | queue view on/off | `E` |
-| move in the queue view later / earlier | `J` / `K` |
+| move the selected entry later / earlier (in the queue view: within the queue) | `J` / `K` |
 | search / jump to track | `/` `ctrl+j` |
 | queue the highlighted match, keep searching (in search) | `ctrl+e` |
+| track info for the selected entry on/off | `i` |
+| show the track in its folder (in track info) | `f` |
 | key help | `?` |
 | close the interface | `q` |
 | quit the player | `Q` |
@@ -41,6 +43,22 @@ The system SHALL provide these default bindings in both the TUI and the popup wi
 #### Scenario: Winamp keys
 - **WHEN** the user presses `b` in the TUI or the popup window
 - **THEN** playback moves to the next track
+
+#### Scenario: Reorder in the playlist
+- **WHEN** the playlist is shown and the user presses `J`
+- **THEN** the selected entry moves one place down
+
+#### Scenario: Reorder in the queue view
+- **WHEN** the queue view is shown and the user presses `J`
+- **THEN** the selected entry moves one place later in the queue and the playlist order does not change
+
+#### Scenario: Add opens the browser in the TUI
+- **WHEN** the user presses `a` or `A` in the TUI
+- **THEN** the playlist panel shows the file browser
+
+#### Scenario: Track info
+- **WHEN** the user selects an entry and presses `i`
+- **THEN** the playlist panel shows that track's info
 
 ### Requirement: Vim-style sequences
 The system SHALL support multi-key sequences such as `gg` and `dd`. A key that starts a sequence SHALL wait for the next key. If the next key does not continue any sequence, that key SHALL be handled on its own.
