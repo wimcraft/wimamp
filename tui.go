@@ -27,7 +27,13 @@ type model struct {
 	srch           search
 	queueOn        bool // the list shows the queue
 	qsel           int
-	br             browser // the file browser, shown in place of the list
+	br             browser   // the file browser, shown in place of the list
+	info           *infoView // the track info view, shown in place of the list
+}
+
+type infoMsg struct {
+	id   int
+	rows [][2]string
 }
 
 func runTUI() error {
@@ -80,6 +86,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(refresh, tick())
 	case flashMsg:
 		m.flash = string(msg)
+	case infoMsg:
+		if m.info != nil && m.info.e.ID == msg.id {
+			m.info.rows = msg.rows
+		}
 	case stateMsg:
 		if !reflect.DeepEqual(msg.s.List, m.s.List) {
 			go queueLengths(paths(msg.s.List), false)
@@ -118,6 +128,8 @@ func (m *model) key(k string) tea.Cmd {
 	switch {
 	case m.help: // any key closes the help
 		m.help = false
+	case m.info != nil:
+		return m.infoKey(k)
 	case m.br.on:
 		return m.browseKey(k)
 	case m.srch.on:
@@ -166,6 +178,12 @@ func (m *model) do(a string) tea.Cmd {
 		m.help = true
 	case "add-files", "add-folder":
 		m.openBrowser()
+	case "info":
+		if cursor < len(m.s.List) {
+			e, length := m.s.List[cursor], rowLength(m.s.List[cursor], m.s)
+			m.info = &infoView{e: e}
+			return func() tea.Msg { return infoMsg{e.ID, infoRows(e, length)} } // reads the file: off the UI loop
+		}
 	case "quit":
 		return tea.Quit
 	case "quit-player":
@@ -193,4 +211,27 @@ func (m *model) rowName(e entry) string {
 		return searchName(e, m.srch.q)
 	}
 	return e.name()
+}
+
+// infoKey handles a key while the info view is shown: player controls work, the list doesn't.
+func (m *model) infoKey(k string) tea.Cmd {
+	if k == "esc" {
+		m.info = nil
+		return nil
+	}
+	switch a := resolve(m.keys, &m.pending, k); {
+	case a == "info":
+		m.info = nil
+	case a == "reveal":
+		e := m.info.e
+		return func() tea.Msg {
+			if err := reveal(e); err != nil {
+				return flashMsg(err.Error())
+			}
+			return nil
+		}
+	case infoActions[a]:
+		return m.do(a)
+	}
+	return nil
 }

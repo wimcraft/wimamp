@@ -103,7 +103,8 @@ type gui struct {
 	menu         bool // ADD's FILE/DIR menu
 	help         bool
 	search       search
-	queueOn      bool // the playlist panel shows the queue
+	queueOn      bool      // the playlist panel shows the queue
+	info         *infoView // the playlist panel shows track info
 	qsel, qtop   int
 	dialog       atomic.Bool
 	refocus      atomic.Bool // the picker just closed: take focus back before the focus check runs
@@ -298,6 +299,8 @@ func (g *gui) Update() error {
 				g.cursor = i
 				g.do(playerAction("play", i, len(g.s.List)))
 			}
+		case g.info != nil:
+			g.infoKey(k)
 		case k == "esc" && g.queueOn:
 			g.queueOn = false
 		case k == "esc":
@@ -395,6 +398,20 @@ func (g *gui) act(a string) {
 		g.pick(a == "add-folder")
 	case "pin":
 		ebiten.SetWindowFloating(!ebiten.IsWindowFloating())
+	case "info":
+		if cursor < len(g.s.List) {
+			e, length := g.s.List[cursor], rowLength(g.s.List[cursor], g.s)
+			g.info = &infoView{e: e}
+			go func() { // reads the file: off the UI thread
+				rows := infoRows(e, length)
+				defer ebiten.ScheduleFrame() //nolint:staticcheck
+				g.mu.Lock()
+				defer g.mu.Unlock()
+				if g.info != nil && g.info.e.ID == e.ID {
+					g.info.rows, g.dirty = rows, true
+				}
+			}()
+		}
 	default:
 		if f := playerAction(a, cursor, len(g.s.List)); f != nil {
 			g.do(f)
@@ -452,7 +469,7 @@ func frac(x int, r image.Rectangle) float64 {
 func (g *gui) mouse() {
 	x, y := ebiten.CursorPosition()
 	p := image.Pt(x, y)
-	if _, wy := ebiten.Wheel(); wy != 0 && p.In(rList) {
+	if _, wy := ebiten.Wheel(); wy != 0 && p.In(rList) && g.info == nil {
 		if g.search.on {
 			g.search.sel = max(min(g.search.sel-int(wy*3), len(match(g.s.List, g.search.q))-1), 0)
 		} else {
@@ -503,6 +520,7 @@ func (g *gui) mouse() {
 			g.menu = !menu
 		case p.In(rRem):
 			g.act("remove")
+		case g.info != nil && (p.In(rList) || p.In(rScroll)): // the info view has no rows to click
 		case p.In(rScroll):
 			idx, _, topp := g.view()
 			top := *topp
@@ -986,7 +1004,10 @@ func (g *gui) Draw(screen *ebiten.Image) {
 	// playlist
 	idx, selp, topp := g.view()
 	title, empty := "WIMAMP PLAYLIST", "empty - a: add files, ?: keys"
-	if g.queueOn {
+	if g.info != nil {
+		idx, title, empty = nil, "WIMAMP TRACK INFO", ""
+	}
+	if g.queueOn && g.info == nil {
 		title, empty = "WIMAMP QUEUE", "queue empty - e: queue a track, E: back"
 	}
 	titleBar(screen, rPLTitle, title)
@@ -1018,6 +1039,9 @@ func (g *gui) Draw(screen *ebiten.Image) {
 	}
 
 	queueMissing(visible, true)
+	if g.info != nil {
+		g.drawInfo(screen)
+	}
 
 	// bottom bar: ADD/REM, then an error or the position and total length
 	button(screen, rAdd, "ADD", g.down == rAdd)
@@ -1025,6 +1049,9 @@ func (g *gui) Draw(screen *ebiten.Image) {
 	info, c := strings.TrimSpace(fmt.Sprintf("%d/%d  %s", min(g.cursor+1, len(s.List)), len(s.List), totalLength(s.List))), cGreen
 	if g.queueOn {
 		info = fmt.Sprintf("queue %d/%d", min(sel+1, len(idx)), len(idx))
+	}
+	if g.info != nil {
+		info, c = "f: show in folder  esc: back", cDim
 	}
 	if g.flash != "" {
 		info, c = g.flash, cErr
@@ -1057,4 +1084,60 @@ func (g *gui) rowName(e entry) string {
 		return searchName(e, g.search.q)
 	}
 	return e.name()
+}
+
+// infoKey handles a key while the info view is shown: player controls work, the list doesn't.
+func (g *gui) infoKey(k string) {
+	if k == "esc" {
+		g.info = nil
+		return
+	}
+	switch a := resolve(g.keys, &g.pending, k); {
+	case a == "info":
+		g.info = nil
+	case a == "reveal":
+		if err := reveal(g.info.e); err != nil {
+			g.flash = err.Error()
+		}
+	case infoActions[a]:
+		g.act(a)
+	}
+}
+
+// drawInfo draws the info view's label/value rows over the list area, long values wrapped.
+func (g *gui) drawInfo(screen *ebiten.Image) {
+	const lw = 82 // label column, pixels
+	x, y, w := rList.Min.X+4, rList.Min.Y, rList.Dx()-lw-8
+	line := func(l, v string, c color.Color) {
+		if y+rowH <= rList.Max.Y {
+			label(screen, l, x, y+2, cDim, 0.75)
+			label(screen, v, x+lw, y, c, 1)
+		}
+		y += rowH
+	}
+	if g.info.rows == nil {
+		line("", fit(g.info.e.name()+" - reading...", w), cDim)
+	}
+	for _, r := range g.info.rows {
+		l := r[0]
+		for _, part := range wrapPx(r[1], w) {
+			line(l, part, cGreen)
+			l = ""
+		}
+	}
+}
+
+// wrapPx splits s into lines at most w pixels wide, breaking anywhere (paths have few spaces).
+func wrapPx(s string, w int) []string {
+	var out []string
+	rs := []rune(s)
+	for len(rs) > 0 {
+		n := len(rs)
+		for n > 1 && int(text.Advance(string(rs[:n]), face)) > w {
+			n--
+		}
+		out = append(out, string(rs[:n]))
+		rs = rs[n:]
+	}
+	return out
 }

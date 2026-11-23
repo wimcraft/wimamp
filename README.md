@@ -78,8 +78,11 @@ The same keys work in the TUI and the window. Press `?` in either one, or run `w
 | close | `q` (window: also Esc) | quit the player | `Q` |
 | always on top (window) | `ctrl+a` | queue / unqueue | `e` |
 | queue view | `E` | move track down / up | `J` / `K` |
+| track info | `i` | show file in folder (in track info) | `f` |
 
 The queue works as in Winamp's Jump To File Extra: `e` queues the selected track, or `ctrl+e` the highlighted search match; the search stays open and moves to the next match, so repeated `ctrl+e` queues several. Queued tracks play next in the order queued, marked `[1]`, `[2]`… in the list, and then the playlist goes on after the track that was playing before them (playing track 76 and queueing track 1 gives 76, 1, 77, 78…); `next` also takes the queue first. Queueing never changes the playlist order; `J` / `K` move the selected track in the playlist. `E` shows the queue in place of the playlist, where `enter` plays, `e` or `dd` unqueue, `J` / `K` reorder, and Esc goes back. The queue lives in the player, so it keeps working with the window and TUI closed, until the player quits.
+
+`i` shows the selected track's info in place of the playlist: title, artist, album, year, track and disc number and genre from the file's own tags (any track, not only the playing one), then length, format, file name and folder. `f` there opens the folder in Finder or Explorer with the file selected; Esc or `i` goes back.
 
 Search filters the playlist as you type, by name or folder. When the match is in a folder, the result shows that folder before the name (`Bad Religion / 03. You Are`). Names containing the query come first, then fuzzy matches. Use `up`/`down` or `ctrl+n`/`ctrl+p` to pick a match, `enter` to play it, and Esc to cancel. In the window, `ctrl+m`, `ctrl+i`, `ctrl+h` and `ctrl+[` work as Enter, Tab, Backspace and Esc, as they do in a terminal.
 

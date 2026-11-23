@@ -128,6 +128,9 @@ func (m *model) listBox(w int) []string {
 	if m.br.on && !m.help {
 		return m.browseBox(w)
 	}
+	if m.info != nil && !m.help {
+		return m.infoBox(w)
+	}
 	in, s, h := w-4, m.s, m.h
 	// rows to show: the whole playlist, the matches while searching, or the queue
 	idx, sel, top := make([]int, len(s.List)), m.cursor, m.top
@@ -186,4 +189,34 @@ func (m *model) listBox(w int) []string {
 		lines = append(lines, boxRow("", w))
 	}
 	return append(lines[:h+1], boxBottom(hint, w))
+}
+
+// infoBox is the track info view in the playlist box: label/value rows, long values wrapped.
+func (m *model) infoBox(w int) []string {
+	const lw = 13 // label column
+	in, h := w-4, m.h
+	lines := []string{boxTop("TRACK INFO", "", w)}
+	add := func(s string) {
+		if len(lines) <= h {
+			lines = append(lines, boxRow(s, w))
+		}
+	}
+	if m.info.rows == nil {
+		add(stDim.Render(m.info.e.name() + " — reading…"))
+	}
+	for _, r := range m.info.rows {
+		label := r[0]
+		for _, part := range strings.Split(ansi.Hardwrap(r[1], max(in-lw, 4), true), "\n") {
+			add(stDim.Render(padTo(label, lw)) + stText.Render(part))
+			label = ""
+		}
+	}
+	for len(lines) < h+1 {
+		lines = append(lines, boxRow("", w))
+	}
+	hint := stDim.Render("f show in folder  esc back")
+	if m.flash != "" {
+		hint = stErr.Render(m.flash)
+	}
+	return append(lines, boxBottom(hint, w))
 }

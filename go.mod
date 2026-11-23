@@ -6,6 +6,7 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/charmbracelet/x/ansi v0.10.1
+	github.com/dhowden/tag v0.0.0-20240417053706-3d75831295e8
 	github.com/ebitengine/purego v0.11.3
 	github.com/hajimehoshi/ebiten/v2 v2.10.6
 	github.com/ncruces/zenity v0.10.15

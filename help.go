@@ -28,6 +28,7 @@ var helpRows = []struct {
 	{"queue / unqueue", []string{"queue"}},
 	{"queue view", []string{"queue-view"}},
 	{"move down / up", []string{"move-later", "move-earlier"}},
+	{"track info / show file", []string{"info", "reveal"}},
 	{"always on top (window)", []string{"pin"}},
 	{"this help", []string{"help"}},
 	{"close", []string{"quit"}},
