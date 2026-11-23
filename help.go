@@ -27,7 +27,7 @@ var helpRows = []struct {
 	{"add files / folder", []string{"add-files", "add-folder"}},
 	{"queue / unqueue", []string{"queue"}},
 	{"queue view", []string{"queue-view"}},
-	{"move later / earlier (in queue view: in the queue)", []string{"move-later", "move-earlier"}},
+	{"move down / up", []string{"move-later", "move-earlier"}},
 	{"always on top (window)", []string{"pin"}},
 	{"this help", []string{"help"}},
 	{"close", []string{"quit"}},

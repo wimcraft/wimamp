@@ -28,6 +28,7 @@ func hex(c color.RGBA) string        { return fmt.Sprintf("#%02x%02x%02x", c.R, 
 func fg(c color.RGBA) lipgloss.Style { return lipgloss.NewStyle().Foreground(lipgloss.Color(hex(c))) }
 func cols(s string) int              { return ansi.StringWidth(s) } // terminal columns, wide characters counted as two
 func cut(s string, w int) string     { return ansi.Truncate(s, max(w, 0), "…") }
+func cutLeft(s string, n int) string { return ansi.TruncateLeft(s, n, "") } // drops n columns from the left
 func border(s string) string         { return stBorder.Render(s) }
 func rule(n int) string              { return strings.Repeat("─", max(n, 0)) }
 
@@ -124,6 +125,9 @@ func (m *model) playerBox(w int) []string {
 
 // listBox is the playlist box: m.h rows between its borders.
 func (m *model) listBox(w int) []string {
+	if m.br.on && !m.help {
+		return m.browseBox(w)
+	}
 	in, s, h := w-4, m.s, m.h
 	// rows to show: the whole playlist, the matches while searching, or the queue
 	idx, sel, top := make([]int, len(s.List)), m.cursor, m.top

@@ -27,6 +27,7 @@ type model struct {
 	srch           search
 	queueOn        bool // the list shows the queue
 	qsel           int
+	br             browser // the file browser, shown in place of the list
 }
 
 func runTUI() error {
@@ -79,8 +80,6 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(refresh, tick())
 	case flashMsg:
 		m.flash = string(msg)
-	case pickedMsg:
-		return m, run(func() error { return load(msg, "append") })
 	case stateMsg:
 		if !reflect.DeepEqual(msg.s.List, m.s.List) {
 			go queueLengths(paths(msg.s.List), false)
@@ -119,6 +118,8 @@ func (m *model) key(k string) tea.Cmd {
 	switch {
 	case m.help: // any key closes the help
 		m.help = false
+	case m.br.on:
+		return m.browseKey(k)
 	case m.srch.on:
 		if i, queue := m.srch.key(k, m.s.List); queue {
 			return run(playerAction("queue", i, len(m.s.List)))
@@ -164,7 +165,7 @@ func (m *model) do(a string) tea.Cmd {
 	case "help":
 		m.help = true
 	case "add-files", "add-folder":
-		return pick(a == "add-folder")
+		m.openBrowser()
 	case "quit":
 		return tea.Quit
 	case "quit-player":

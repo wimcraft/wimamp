@@ -151,7 +151,8 @@ type state struct {
 	Shuffle       bool
 	Repeat        bool
 	List          []entry
-	Queue         []int // entry ids that play before the playlist continues
+	Queue         []int  // entry ids that play before the playlist continues
+	BrowseDir     string // the folder the TUI's file browser was last left in
 }
 
 func fetch() (state, error) {
@@ -166,6 +167,7 @@ func fetch() (state, error) {
 		[]any{"get_property", "loop-playlist"},
 		[]any{"get_property", "user-data/wimamp/shuffle"},
 		[]any{"get_property", "user-data/wimamp/queue"},
+		[]any{"get_property", "user-data/wimamp/browse-dir"},
 	)
 	var s state
 	if r == nil {
@@ -182,6 +184,7 @@ func fetch() (state, error) {
 	s.Repeat = string(r[7]) != "false" && r[7] != nil // "inf", a count, or false
 	json.Unmarshal(r[8], &s.Shuffle)
 	json.Unmarshal(r[9], &s.Queue)
+	json.Unmarshal(r[10], &s.BrowseDir)
 	if i := currentIndex(s.List, -1); i >= 0 && s.Dur > 0 && !s.Idle {
 		learnLength(s.List[i].Filename, s.Dur)
 	}
