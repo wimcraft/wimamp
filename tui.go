@@ -3,8 +3,8 @@ package main
 import (
 	"reflect"
 	"strings"
-	"unicode/utf8"
 	"time"
+	"unicode/utf8"
 
 	tea "github.com/charmbracelet/bubbletea"
 )

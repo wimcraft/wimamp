@@ -84,7 +84,7 @@ func TestBrowserKeys(t *testing.T) {
 		t.Errorf("esc: on %v, kept dir %q", m.br.on, m.s.BrowseDir)
 	}
 	m.br.marks = nil
-	m.do("add-folder") // reopens where it was left
+	m.do("add-folder")   // reopens where it was left
 	press("j", "j", "j") // A.flac
 	if got := m.br.take(); len(got) != 1 || filepath.Base(got[0]) != "A.flac" {
 		t.Errorf("selected file: %v", got)
