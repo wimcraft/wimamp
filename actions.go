@@ -111,12 +111,14 @@ func queueMark(e entry, q []int) string {
 }
 
 // queueAction turns a key action in the queue view into the one to run: removing unqueues
-// instead of deleting from the playlist, queueing an entry that is already queued unqueues it,
+// instead of deleting from the playlist, queueing does nothing (e is easily pressed to go back),
 // and moving moves within the queue.
 func queueAction(a string) string {
 	switch a {
-	case "remove", "queue":
+	case "remove":
 		return "unqueue"
+	case "queue":
+		return ""
 	case "move-later":
 		return "queue-later"
 	case "move-earlier":

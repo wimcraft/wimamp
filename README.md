@@ -6,7 +6,7 @@ A keyboard-first music player for local files, in the spirit of Winamp. One smal
 
 <p align="center"><img src="docs/screenshot.png" width="300" alt="The wimamp popup window: player controls above a green-on-black playlist"></p>
 
-The popup uses a 300 × 374-point classic-inspired layout with beveled silver controls, striped title bars, and a green display. The crossing-arrows button toggles shuffle; the return-arrow button toggles repeat. Drag the playlist scrollbar to browse without changing the selected track. The pin button at the left of the title bar, or `ctrl+a`, keeps the window on top and open when you click elsewhere; it starts off. The playing track is shown in white.
+The popup uses a 300 × 374-point classic-inspired layout with beveled silver controls, striped title bars, and a green display. The crossing-arrows button toggles shuffle; the return-arrow button toggles repeat. Drag the playlist scrollbar to browse without changing the selected track. The pin button at the left of the title bar, or `ctrl+a`, keeps the window on top and open when you click elsewhere; it starts off. The playing track is shown in white. LIST, at the right of the playlist's bottom bar, starts a new (empty) playlist, or saves or loads one as an `.m3u` in the saved-playlists folder, the same ones `wimamp save` / `wimamp load` use; `ctrl+n`, `ctrl+s` and `ctrl+o` do the same from the keyboard, also in the TUI, where save asks for a name and load opens the browser on the saved playlists.
 
 The playlist in the window and the TUI shows each track's length and the playlist's total. Lengths are read from the file headers of MP3, FLAC, Ogg Vorbis, Opus, M4A/MP4 (AAC and ALAC), WAV and AIFF files in the background. Other formats get their length once they have played. The total ends in `+` while some lengths are still unknown.
 
@@ -61,7 +61,7 @@ Closing the TUI or the window leaves the music playing. The popup window closes 
 
 ## Keys
 
-The TUI draws the same player in the terminal, in the window's colors: a player box with the time, title, seek bar, volume meter and shuffle/repeat lights above the playlist box. There, `a` or `A` show a file browser in the playlist box: `l` / `enter` open a folder, `h` goes up, `~` home, `space` marks several files or folders, `a` (or `enter` on a file) adds the marked ones, or the selected one, and Esc goes back. It reopens in the folder you last left, while the player runs.
+The TUI draws the same player in the terminal, in the window's colors: a player box with the time, title, seek bar, volume meter and shuffle/repeat lights above the playlist box. There, `a` or `A` show a file browser in the playlist box: `l` / `enter` open a folder, `h` goes up, `~` home, `space` marks several files or folders, `a` (or `enter` on a file) adds the marked ones, or the selected one, `/` narrows the folder to names containing what you type, and Esc goes back. It reopens in the folder you last left, while the player runs.
 
 The same keys work in the TUI and the window. Press `?` in either one, or run `wimamp keys`, to see every action with its current keys.
 
@@ -79,8 +79,9 @@ The same keys work in the TUI and the window. Press `?` in either one, or run `w
 | always on top (window) | `ctrl+a` | queue / unqueue | `e` |
 | queue view | `E` | move track down / up | `J` / `K` |
 | track info | `i` | show file in folder (in track info) | `f` |
+| new / save / load playlist | `ctrl+n` / `ctrl+s` / `ctrl+o` | | |
 
-The queue works as in Winamp's Jump To File Extra: `e` queues the selected track, or `ctrl+e` the highlighted search match; the search stays open and moves to the next match, so repeated `ctrl+e` queues several. Queued tracks play next in the order queued, marked `[1]`, `[2]`… in the list, and then the playlist goes on after the track that was playing before them (playing track 76 and queueing track 1 gives 76, 1, 77, 78…); `next` also takes the queue first. Queueing never changes the playlist order; `J` / `K` move the selected track in the playlist. `E` shows the queue in place of the playlist, where `enter` plays, `e` or `dd` unqueue, `J` / `K` reorder, and Esc goes back. The queue lives in the player, so it keeps working with the window and TUI closed, until the player quits.
+The queue works as in Winamp's Jump To File Extra: `e` queues the selected track, or `ctrl+e` the highlighted search match; the search stays open and moves to the next match, so repeated `ctrl+e` queues several. Queued tracks play next in the order queued, marked `[1]`, `[2]`… in the list, and then the playlist goes on after the track that was playing before them (playing track 76 and queueing track 1 gives 76, 1, 77, 78…); `next` also takes the queue first. Queueing never changes the playlist order; `J` / `K` move the selected track in the playlist. `E` shows the queue in place of the playlist, where `enter` plays, `d` unqueues, `J` / `K` reorder, and `E` or Esc goes back. The queue lives in the player, so it keeps working with the window and TUI closed, until the player quits.
 
 `i` shows the selected track's info in place of the playlist: title, artist, album, year, track and disc number and genre from the file's own tags (any track, not only the playing one), then length, format, file name and folder. `f` there opens the folder in Finder or Explorer with the file selected; Esc or `i` goes back.
 

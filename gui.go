@@ -8,6 +8,7 @@ import (
 	"image/color"
 	"net"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
@@ -73,6 +74,10 @@ var (
 	rRem     = image.Rect(39, gh-29, 64, gh-11)
 	rAddFile = image.Rect(10, gh-65, 50, gh-47)
 	rAddDir  = image.Rect(10, gh-47, 50, gh-29)
+	rLst     = image.Rect(gw-38, gh-29, gw-8, gh-11) // LIST, after the status box as in Winamp
+	rNewList = image.Rect(gw-48, gh-83, gw-8, gh-65)
+	rSaveLst = image.Rect(gw-48, gh-65, gw-8, gh-47)
+	rLoadLst = image.Rect(gw-48, gh-47, gw-8, gh-29)
 )
 
 // transport buttons, left to right, and the action each one runs
@@ -101,6 +106,7 @@ type gui struct {
 	lastClick    time.Time
 	lastRow      int
 	menu         bool // ADD's FILE/DIR menu
+	listMenu     bool // LIST's NEW/SAVE/LOAD menu
 	help         bool
 	search       search
 	queueOn      bool      // the playlist panel shows the queue
@@ -108,6 +114,7 @@ type gui struct {
 	qsel, qtop   int
 	dialog       atomic.Bool
 	refocus      atomic.Bool // the picker just closed: take focus back before the focus check runs
+	regain       time.Time   // until then, keep taking focus back after a dialog until the window has it
 	wasFocused   bool
 	quit         bool
 	resident     bool // closing hides the window and the process waits for the next `wimamp gui`
@@ -207,6 +214,7 @@ func (g *gui) closeWin() error {
 	ebiten.SetWindowVisible(false)
 	g.hidden.Store(true)
 	g.quit, g.wasFocused, g.help, g.menu, g.drag, g.search, g.pending = false, false, false, false, "", search{}, ""
+	g.listMenu = false
 	g.queueOn = false
 	return nil
 }
@@ -281,7 +289,11 @@ func (g *gui) Update() error {
 		g.wasFocused = false
 	case g.refocus.Swap(false): // macOS hands focus to the previous app when the picker closes
 		activate()
-		g.wasFocused = false
+		g.wasFocused, g.regain = false, time.Now().Add(time.Second)
+	case !f && time.Now().Before(g.regain):
+		// a panel closing after a choice can take key status back after the first try: try again shortly
+		activate()
+		time.AfterFunc(100*time.Millisecond, func() { ebiten.ScheduleFrame() }) //nolint:staticcheck
 	case g.wasFocused && !f && !ebiten.IsWindowFloating(): // pinned on top: stay open
 		return g.closeWin()
 	default:
@@ -301,6 +313,8 @@ func (g *gui) Update() error {
 			}
 		case g.info != nil:
 			g.infoKey(k)
+		case k == "d" && g.queueOn: // a single d unqueues here: nothing in the queue view is deleted for good
+			g.act("remove")
 		case k == "esc" && g.queueOn:
 			g.queueOn = false
 		case k == "esc":
@@ -398,6 +412,10 @@ func (g *gui) act(a string) {
 		g.pick(a == "add-folder")
 	case "pin":
 		ebiten.SetWindowFloating(!ebiten.IsWindowFloating())
+	case "new-list":
+		g.do(clearList)
+	case "save-list", "load-list":
+		g.listDialog(a == "save-list")
 	case "info":
 		if cursor < len(g.s.List) {
 			e, length := g.s.List[cursor], rowLength(g.s.List[cursor], g.s)
@@ -429,37 +447,66 @@ func (g *gui) showVol() {
 }
 
 func (g *gui) pick(dir bool) {
-	g.menu = false
-	if !g.dialog.CompareAndSwap(false, true) { // one picker at a time, or the focus guard breaks
+	g.runDialog(func() func() error {
+		title := "Add files"
+		if dir {
+			title = "Add folder"
+		}
+		paths, err := openDialog(title, "", dir, !dir, nil)
+		return afterDialog(err, func() error { return load(paths, "append") })
+	})
+}
+
+// listDialog asks for a playlist file in the saved-playlists folder, then saves to it or loads it.
+func (g *gui) listDialog(toSave bool) {
+	g.runDialog(func() func() error {
+		dir := filepath.Join(configDir(), "playlists")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return func() error { return err }
+		}
+		exts := []string{"m3u", "m3u8"}
+		if toSave {
+			p, err := saveDialog("Save playlist", dir, exts)
+			return afterDialog(err, func() error { return save(m3uName(p)) })
+		}
+		ps, err := openDialog("Load playlist", dir, false, false, exts)
+		return afterDialog(err, func() error { return loadList(ps[0]) })
+	})
+}
+
+// runDialog runs ask, which shows a file dialog and returns the player call to make (nil when cancelled).
+// One dialog at a time: while one is open, the focus check must not close the window.
+func (g *gui) runDialog(ask func() func() error) {
+	g.menu, g.listMenu = false, false
+	if !g.dialog.CompareAndSwap(false, true) {
 		return
 	}
-	go func() {
+	run := func() {
 		defer func() {
 			g.refocus.Store(true) // set before clearing dialog, so no frame sees neither flag
 			g.dialog.Store(false)
 			ebiten.ScheduleFrame() //nolint:staticcheck
 		}()
-		var paths []string
-		var err error
-		if dir {
-			var p string
-			p, err = zenity.SelectFile(zenity.Directory(), zenity.Title("Add folder"))
-			paths = []string{p}
-		} else {
-			paths, err = zenity.SelectFileMultiple(zenity.Title("Add files"))
+		if f := ask(); f != nil {
+			go func() { queue <- func() { g.exec(f) } }() // not here: an in-process dialog runs inside Update, which holds g.mu
 		}
-		if errors.Is(err, zenity.ErrCanceled) {
-			return
-		}
-		queue <- func() { // blocking is fine here: this goroutine holds no lock
-			g.exec(func() error {
-				if err != nil {
-					return err
-				}
-				return load(paths, "append")
-			})
-		}
-	}()
+	}
+	if dialogsInProcess {
+		run()
+	} else {
+		go run()
+	}
+}
+
+// afterDialog is the call to make once a dialog returned: nothing when cancelled, the error, or f.
+func afterDialog(err error, f func() error) func() error {
+	switch {
+	case errors.Is(err, zenity.ErrCanceled):
+		return nil
+	case err != nil:
+		return func() error { return err }
+	}
+	return f
 }
 
 func frac(x int, r image.Rectangle) float64 {
@@ -483,9 +530,9 @@ func (g *gui) mouse() {
 	}
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 		g.dirty = true
-		menu := g.menu
-		g.menu = false
-		for _, r := range []image.Rectangle{rClose, rPin, rShuf, rRep, rAdd, rRem} {
+		menu, listMenu := g.menu, g.listMenu
+		g.menu, g.listMenu = false, false
+		for _, r := range []image.Rectangle{rClose, rPin, rShuf, rRep, rAdd, rRem, rLst} {
 			if p.In(r) {
 				g.down = r
 			}
@@ -497,7 +544,22 @@ func (g *gui) mouse() {
 				}
 			}
 		}
+		if listMenu {
+			for _, r := range []image.Rectangle{rNewList, rSaveLst, rLoadLst} {
+				if p.In(r) {
+					g.down = r
+				}
+			}
+		}
 		switch {
+		case listMenu && p.In(rNewList):
+			g.act("new-list")
+		case listMenu && p.In(rSaveLst):
+			g.act("save-list")
+		case listMenu && p.In(rLoadLst):
+			g.act("load-list")
+		case p.In(rLst):
+			g.listMenu = !listMenu
 		case menu && p.In(rAddFile):
 			g.pick(false)
 		case menu && p.In(rAddDir):
@@ -1059,12 +1121,18 @@ func (g *gui) Draw(screen *ebiten.Image) {
 	if g.search.on {
 		info, c = fmt.Sprintf("/%s_  %d", g.search.q, len(idx)), cWhite
 	}
-	box := image.Rect(rRem.Max.X+6, rAdd.Min.Y, gw-8, rAdd.Max.Y)
+	button(screen, rLst, "LIST", g.down == rLst)
+	box := image.Rect(rRem.Max.X+6, rAdd.Min.Y, rLst.Min.X-4, rAdd.Max.Y)
 	fill(screen, box, cBlack)
 	label(screen, fit(info, box.Dx()-6), box.Min.X+3, box.Min.Y+2, c, 1)
 	if g.menu {
 		button(screen, rAddFile, "FILE", g.down == rAddFile)
 		button(screen, rAddDir, "DIR", g.down == rAddDir)
+	}
+	if g.listMenu {
+		button(screen, rNewList, "NEW", g.down == rNewList)
+		button(screen, rSaveLst, "SAVE", g.down == rSaveLst)
+		button(screen, rLoadLst, "LOAD", g.down == rLoadLst)
 	}
 	frame(screen, image.Rect(0, 0, gw, 116))
 	frame(screen, image.Rect(0, 116, gw, gh))
@@ -1099,6 +1167,9 @@ func (g *gui) infoKey(k string) {
 		if err := reveal(g.info.e); err != nil {
 			g.flash = err.Error()
 		}
+	case listActions[a]: // they change the list the info came from: leave the view first
+		g.info = nil
+		g.act(a)
 	case infoActions[a]:
 		g.act(a)
 	}

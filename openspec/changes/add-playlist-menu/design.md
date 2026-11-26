@@ -1,0 +1,12 @@
+## Decisions
+
+- **One LIST button with a pop-up menu**, the same pattern and look as ADD's FILE / DIR menu: LIST sits at the right end of the bottom bar after the status box, as in Winamp (`[ADD][REM] [status…][LIST]`); the status box shrinks by one button width, and the menu opens above LIST, aligned to its right edge. Clicking elsewhere closes the menu, as ADD's does.
+- **NEW behaves like `wimamp clear`**: playlist emptied and playback stopped, the queue emptied with it (queued entries are gone from the playlist). No confirmation, as in Winamp; the list can be saved first. Keeping the playing track (Winamp keeps it running) is left out: the CLI's clear already stops, and two meanings of "clear" would be confusing.
+- **SAVE / LOAD through native dialogs** (zenity `SelectFileSave` / `SelectFile` with an `.m3u` / `.m3u8` filter), starting in `<config-dir>/playlists`, created if missing. They go through the same one-dialog-at-a-time and refocus guards as ADD's picker. Save adds `.m3u` when the name has no extension and asks before overwriting (the dialog's own confirm). The chosen path is passed to the existing save / load code, which already treats a path as a path.
+- **Keys** `ctrl+n` / `ctrl+s` / `ctrl+o` as in Winamp's playlist editor, in both interfaces (first planned window-only; the user found them listed in the TUI help and not working). The TUI has no native dialogs: save asks for a name in the bottom border (a bare name goes to the playlists folder, as with `wimamp save`; overwrites like the CLI does), load reuses the file browser on the playlists folder showing `.m3u` / `.m3u8` only, without marks. `ctrl+s` arrives in raw mode, where terminal flow control is off.
+- **macOS dialogs in process**: zenity shows them through osascript, a separate app: the dialog often lacked keyboard focus (worse with AeroSpace), and closing it handed focus to the previous app, so the window's focus check closed it. NSOpenPanel / NSSavePanel through purego/objc (already used for activation) run modally on the main thread inside Update; the player call that follows is queued from a goroutine, since Update holds the lock the queue worker needs. Windows (in-process already) and Linux keep zenity.
+- **Errors** (unwritable file, unreadable playlist) show in the status box, like other player errors. Cancelling a dialog changes nothing.
+
+## Not in scope
+
+- LIST in the TUI, a list of saved playlists inside the window, SEL and MISC buttons, sorting.

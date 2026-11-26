@@ -102,6 +102,9 @@ func reveal(e entry) error {
 	return nil
 }
 
+// listActions start a new playlist, save it or load another; they also work from the info view.
+var listActions = map[string]bool{"new-list": true, "save-list": true, "load-list": true}
+
 // infoActions are the keys that still work while the info view is shown: player controls, not the list.
 var infoActions = map[string]bool{
 	"resume": true, "toggle": true, "stop": true, "next": true, "prev": true, "seek-forward": true, "seek-back": true,

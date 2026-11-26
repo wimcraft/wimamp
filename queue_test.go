@@ -3,12 +3,15 @@ package main
 import (
 	"encoding/binary"
 	"encoding/json"
+	"image"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
 	"testing"
 	"time"
+
+	"github.com/hajimehoshi/ebiten/v2/text/v2"
 )
 
 func TestQueueHelpers(t *testing.T) {
@@ -36,7 +39,7 @@ func TestQueueHelpers(t *testing.T) {
 	if queueMark(list[2], []int{11, 12}) != "[2] " || queueMark(list[0], []int{11}) != "" {
 		t.Error("marks")
 	}
-	if queueAction("remove") != "unqueue" || queueAction("queue") != "unqueue" || queueAction("next") != "next" {
+	if queueAction("remove") != "unqueue" || queueAction("queue") != "" || queueAction("next") != "next" {
 		t.Error("queue view actions")
 	}
 }
@@ -229,5 +232,53 @@ func TestMovePlaylist(t *testing.T) {
 	}
 	if !slices.Equal(s.Queue, []int{list[3].ID}) || currentIndex(s.List, -1) != 0 {
 		t.Errorf("queue %v playing %d after moves", s.Queue, currentIndex(s.List, -1))
+	}
+}
+
+func TestPlaylistMenu(t *testing.T) {
+	if m3uName("/p/evening") != "/p/evening.m3u" || m3uName("/p/evening.m3u8") != "/p/evening.m3u8" {
+		t.Error("m3uName")
+	}
+	// LIST sits right of the status box, its menu above it, all inside the window
+	if rLst.Min.X <= rRem.Max.X+6 || rLst.Max.X > gw || rLoadLst.Max.Y != rLst.Min.Y || rNewList.Max.X != rLst.Max.X {
+		t.Errorf("LIST at %v, menu ending at %v", rLst, rLoadLst)
+	}
+	for _, b := range []struct {
+		r image.Rectangle
+		s string
+	}{{rLst, "LIST"}, {rNewList, "NEW"}, {rSaveLst, "SAVE"}, {rLoadLst, "LOAD"}} {
+		if w := int(text.Advance(b.s, smallFace)); w > b.r.Dx()-4 {
+			t.Errorf("%s is %d px wide in a %d px button", b.s, w, b.r.Dx())
+		}
+	}
+	if k, _ := parseKeys(""); k["ctrl+n"] != "new-list" || k["ctrl+s"] != "save-list" || k["ctrl+o"] != "load-list" {
+		t.Error("ctrl+n/s/o bindings")
+	}
+}
+
+func TestNewSaveLoadList(t *testing.T) {
+	list := startTestPlayer(t, 3, 5)
+	setQueue([]int{list[2].ID})
+	p := m3uName(filepath.Join(t.TempDir(), "evening"))
+	if err := save(p); err != nil {
+		t.Fatal(err)
+	}
+	if err := clearList(); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(200 * time.Millisecond)
+	if s, _ := fetch(); len(s.List) != 0 || len(s.Queue) != 0 || !s.Idle {
+		t.Fatalf("after NEW: %d entries, queue %v, idle %v", len(s.List), s.Queue, s.Idle)
+	}
+	if err := loadList(p); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(300 * time.Millisecond)
+	s, _ := fetch()
+	if len(s.List) != 3 || s.List[0].Filename != list[0].Filename || s.List[2].Filename != list[2].Filename || s.Paused {
+		t.Errorf("after LOAD: %+v paused %v", s.List, s.Paused)
+	}
+	if loadList(filepath.Join(t.TempDir(), "nope.m3u")) == nil {
+		t.Error("loading a missing playlist")
 	}
 }

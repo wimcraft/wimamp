@@ -3,6 +3,7 @@ package main
 import (
 	"reflect"
 	"strings"
+	"unicode/utf8"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -29,6 +30,8 @@ type model struct {
 	qsel           int
 	br             browser   // the file browser, shown in place of the list
 	info           *infoView // the track info view, shown in place of the list
+	saving         bool      // the bottom border asks for a name to save the playlist as
+	saveName       string
 }
 
 type infoMsg struct {
@@ -128,6 +131,8 @@ func (m *model) key(k string) tea.Cmd {
 	switch {
 	case m.help: // any key closes the help
 		m.help = false
+	case m.saving:
+		return m.saveKey(k)
 	case m.info != nil:
 		return m.infoKey(k)
 	case m.br.on:
@@ -139,6 +144,8 @@ func (m *model) key(k string) tea.Cmd {
 			m.cursor = i
 			return run(playerAction("play", i, len(m.s.List)))
 		}
+	case k == "d" && m.queueOn: // a single d unqueues here: nothing in the queue view is deleted for good
+		return m.do("remove")
 	case k == "esc" && m.queueOn:
 		m.queueOn = false
 	default:
@@ -178,6 +185,12 @@ func (m *model) do(a string) tea.Cmd {
 		m.help = true
 	case "add-files", "add-folder":
 		m.openBrowser()
+	case "new-list":
+		return run(clearList)
+	case "save-list":
+		m.saving, m.saveName = true, ""
+	case "load-list":
+		m.openLists()
 	case "info":
 		if cursor < len(m.s.List) {
 			e, length := m.s.List[cursor], rowLength(m.s.List[cursor], m.s)
@@ -230,8 +243,38 @@ func (m *model) infoKey(k string) tea.Cmd {
 			}
 			return nil
 		}
+	case listActions[a]: // they change the list the info came from: leave the view first
+		m.info = nil
+		return m.do(a)
 	case infoActions[a]:
 		return m.do(a)
+	}
+	return nil
+}
+
+// saveKey edits the name the playlist is saved as: a bare name goes to the saved-playlists folder.
+func (m *model) saveKey(k string) tea.Cmd {
+	switch k {
+	case "esc":
+		m.saving = false
+	case "enter":
+		name := strings.TrimSpace(m.saveName)
+		if name == "" {
+			return nil
+		}
+		m.saving = false
+		p := playlistPath(name)
+		return run(func() error { return save(p) })
+	case "backspace":
+		if rs := []rune(m.saveName); len(rs) > 0 {
+			m.saveName = string(rs[:len(rs)-1])
+		}
+	case "space":
+		m.saveName += " "
+	default:
+		if utf8.RuneCountInString(k) == 1 {
+			m.saveName += k
+		}
 	}
 	return nil
 }

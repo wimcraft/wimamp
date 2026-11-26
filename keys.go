@@ -18,6 +18,7 @@ var defaultKeys = map[string]string{
 	"shuffle": "S", "repeat": "r", "add-files": "a", "add-folder": "A", "pin": "ctrl+a",
 	"queue": "e", "queue-view": "E", "move-later": "J", "move-earlier": "K",
 	"search": "/ ctrl+j", "help": "?", "info": "i", "reveal": "f",
+	"new-list": "ctrl+n", "save-list": "ctrl+s", "load-list": "ctrl+o",
 }
 
 // renamedActions maps old action names in a user's keys.conf to the current ones.

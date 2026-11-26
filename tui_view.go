@@ -155,7 +155,7 @@ func (m *model) listBox(w int) []string {
 		idx, sel = queueIndices(s.List, s.Queue), m.qsel
 		top = max(0, sel-h+1)
 		title, right = fmt.Sprintf("QUEUE (%d)", len(idx)), ""
-		hint = stDim.Render("e/dd unqueue  J/K move  esc back")
+		hint = stDim.Render("d unqueue  J/K move  E/esc back")
 		if len(idx) == 0 {
 			body = append(body, stDim.Render("queue is empty — select a track and press e"))
 		}
@@ -164,6 +164,9 @@ func (m *model) listBox(w int) []string {
 	}
 	if m.flash != "" {
 		hint = stErr.Render(m.flash)
+	}
+	if m.saving {
+		hint = stPlay.Render("save playlist as: "+m.saveName+"█") + stDim.Render("  enter save  esc cancel")
 	}
 	lines := []string{boxTop(title, right, w)}
 	for _, l := range body {

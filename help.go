@@ -30,6 +30,7 @@ var helpRows = []struct {
 	{"move down / up", []string{"move-later", "move-earlier"}},
 	{"track info / show file", []string{"info", "reveal"}},
 	{"always on top (window)", []string{"pin"}},
+	{"new / save / load list", []string{"new-list", "save-list", "load-list"}},
 	{"this help", []string{"help"}},
 	{"close", []string{"quit"}},
 	{"quit player", []string{"quit-player"}},

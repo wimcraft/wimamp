@@ -139,12 +139,7 @@ func runCmd(cmd string, args []string) error {
 		if len(args) != 1 {
 			return errors.New("load: give a name")
 		}
-		p := playlistPath(args[0])
-		if _, err := os.Stat(p); err != nil {
-			return err
-		}
-		_, err := call([]any{"loadlist", p, "replace"}, []any{"set_property", "pause", false})
-		return err
+		return loadList(playlistPath(args[0]))
 	}
 	return fmt.Errorf("unknown command %q (see wimamp help)", cmd)
 }
@@ -230,6 +225,29 @@ func save(path string) error {
 		return err
 	}
 	return os.WriteFile(path, []byte(b.String()), 0o644)
+}
+
+// loadList replaces the playlist with the saved one at p and plays it.
+func loadList(p string) error {
+	if _, err := os.Stat(p); err != nil {
+		return err
+	}
+	_, err := call([]any{"loadlist", p, "replace"}, []any{"set_property", "pause", false})
+	return err
+}
+
+// clearList empties the playlist and the queue and stops playback.
+func clearList() error {
+	_, err := call(simple["clear"], []any{"set_property", "user-data/wimamp/queue", []int{}})
+	return err
+}
+
+// m3uName adds .m3u to a file name chosen without an extension.
+func m3uName(p string) string {
+	if filepath.Ext(p) == "" {
+		return p + ".m3u"
+	}
+	return p
 }
 
 // playlistPath maps a bare name to the playlists dir; anything path-like is used as given.

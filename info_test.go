@@ -136,3 +136,13 @@ func TestInfoView(t *testing.T) {
 		t.Errorf("i again: info %v, cursor %d", m.info, m.cursor)
 	}
 }
+
+func TestListKeysFromInfo(t *testing.T) {
+	m := testModel(40, 14)
+	m.keys, _ = parseKeys("")
+	m.info = &infoView{e: m.s.List[0]}
+	m.key("ctrl+s")
+	if m.info != nil || !m.saving {
+		t.Errorf("ctrl+s from info: info %v saving %v", m.info, m.saving)
+	}
+}
