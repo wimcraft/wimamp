@@ -25,6 +25,7 @@ The system SHALL provide these default bindings in both the TUI and the popup wi
 | shuffle / repeat toggle | `S` / `r` |
 | add music (native picker in the window: files / folder; file browser in the TUI) | `a` / `A` |
 | always on top on/off (window only) | `ctrl+a` |
+| new / save / load playlist | `ctrl+n` / `ctrl+s` / `ctrl+o` |
 | queue / unqueue selected | `e` |
 | queue view on/off | `E` |
 | move the selected entry later / earlier (in the queue view: within the queue) | `J` / `K` |
@@ -59,6 +60,10 @@ The system SHALL provide these default bindings in both the TUI and the popup wi
 #### Scenario: Track info
 - **WHEN** the user selects an entry and presses `i`
 - **THEN** the playlist panel shows that track's info
+
+#### Scenario: New playlist by keyboard
+- **WHEN** the window or the TUI is open and the user presses `ctrl+n`
+- **THEN** the playlist is emptied, as with LIST > NEW
 
 ### Requirement: Vim-style sequences
 The system SHALL support multi-key sequences such as `gg` and `dd`. A key that starts a sequence SHALL wait for the next key. If the next key does not continue any sequence, that key SHALL be handled on its own.
